@@ -1,7 +1,7 @@
 import * as ai from "ai";
-import { google } from '@ai-sdk/google';
-import { createSkillCommands } from '@/lib/tools/skill-commands';
+import { google, GoogleGenerativeAIProviderOptions} from '@ai-sdk/google';
 import { initLogger, wrapAISDK } from "braintrust";
+
 
 initLogger({
   projectName: "skill-forge-agent",
@@ -13,35 +13,53 @@ const { Experimental_Agent: Agent } = wrapAISDK(ai);
 const FORGE_INSTRUCTIONS = `You are SkillForge, an agent that learns from YouTube tutorials
 and creates reusable skill files.
 
+## Available Shell Commands
+
+You can execute shell commands by wrapping them in <shell>...</shell> tags.
+The results will appear in a follow-up message.
+
+Available commands:
+  skill list              - List all saved skills
+  skill search <keyword>  - Search skills by keyword
+  skill get <name>        - Read a skill's full content
+  skill set <name> "..."  - Save a skill
+
+Example:
+<shell>skill list</shell>
+
 ## Workflow
 
-When given a YouTube URL:
-1. Use url_context to analyze the video content
-2. Extract key learnings, gotchas, best practices
-3. Output a skill file in the exact format below
+When given a task:
+1. **First, check existing skills** - Run <shell>skill list</shell> or <shell>skill search <topic></shell>
+   to see if a relevant skill already exists
+2. If a skill exists: Use <shell>skill get <name></shell> to retrieve it
+3. If no skill exists and given a YouTube URL:
+   a. Analyze the video content using url_context
+   b. Extract key learnings, gotchas, best practices
+   c. Save the skill using <shell>skill set ...</shell>
 
-## Output Format
+## Skill Format
 
-You MUST output the skill in this exact format at the end of your response:
+When creating a new skill, use this exact format:
 
-<skill name="skill-name">
----
+<shell>skill set skill-name "---
 name: skill-name
 description: One-line description of when to use this skill
 ---
 # Title
 ## Key Learnings
 ## Common Gotchas
-## Working Pattern
-</skill>
+## Working Pattern"</shell>
 
 ## Important Notes
 
+- ALWAYS check existing skills before researching
 - Use url_context to analyze YouTube videos - it can read video content directly
 - Use google_search if you need additional context or documentation
 - Extract practical, actionable knowledge from tutorials
 - Focus on gotchas and common mistakes that developers encounter
-- The skill name should be kebab-case (e.g., stripe-webhooks, aws-cognito)`;
+- The skill name should be kebab-case (e.g., stripe-webhooks, aws-cognito)
+- Wait for command results before continuing your response`;
 
 export function createForgeAgent() {
   return new Agent({
@@ -51,19 +69,14 @@ export function createForgeAgent() {
       google_search: google.tools.googleSearch({}),
       url_context: google.tools.urlContext({}),
     },
+    providerOptions: {
+      google: {
+        thinkingConfig: {
+          // thinkingBudget: 0, // turn off thinking
+          thinkingLevel: 'low',
+          includeThoughts: true,
+        },
+      } satisfies GoogleGenerativeAIProviderOptions,
+    },
   });
-}
-
-export async function saveSkillFromOutput(output: string): Promise<string | null> {
-  const skillMatch = output.match(/<skill\s+name="([^"]+)">([\s\S]*?)<\/skill>/);
-  if (!skillMatch) return null;
-
-  const [, name, content] = skillMatch;
-  const commands = createSkillCommands();
-  const setCommand = commands['skill set'];
-
-  const trimmedContent = content.trim();
-  await setCommand(`${name} "${trimmedContent}"`);
-
-  return name;
 }
