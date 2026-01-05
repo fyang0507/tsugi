@@ -1,7 +1,7 @@
 import { ModelMessage } from 'ai';
 import { createForgeAgent } from '@/lib/agent/forge-agent';
-import { extractCommands, formatToolResults, truncateOutput } from '@/lib/tools/command-parser';
-import { createSkillCommands } from '@/lib/tools/skill-commands';
+import { extractCommands, formatToolResults } from '@/lib/tools/command-parser';
+import { executeCommand } from '@/lib/tools/skill-commands';
 
 const MAX_ITERATIONS = 10;
 
@@ -11,11 +11,16 @@ interface Message {
 }
 
 interface SSEEvent {
-  type: 'text' | 'tool-call' | 'tool-result' | 'iteration-end' | 'done' | 'error';
+  type: 'text' | 'tool-call' | 'tool-result' | 'iteration-end' | 'done' | 'error' | 'usage';
   content?: string;
   command?: string;
   result?: string;
   hasMoreCommands?: boolean;
+  usage?: {
+    promptTokens?: number;
+    completionTokens?: number;
+    cachedContentTokenCount?: number;
+  };
 }
 
 function createSSEStream() {
@@ -44,21 +49,6 @@ function createSSEStream() {
   return { stream, send, close };
 }
 
-async function executeCommand(command: string): Promise<string> {
-  const commands = createSkillCommands();
-  const sortedCommands = Object.keys(commands).sort((a, b) => b.length - a.length);
-
-  for (const cmd of sortedCommands) {
-    if (command === cmd || command.startsWith(cmd + ' ')) {
-      const args = command.slice(cmd.length).trim();
-      const handler = commands[cmd];
-      const result = await handler(args);
-      return truncateOutput(result);
-    }
-  }
-
-  return `Unknown command: ${command}. Run "skill help" for available commands.`;
-}
 
 /**
  * Convert our internal message format to AI SDK ModelMessage format.
@@ -108,6 +98,26 @@ export async function POST(req: Request) {
           fullOutput += chunk;
           send({ type: 'text', content: chunk });
         }
+
+        // Get usage metadata including cache stats
+        const usage = await result.usage;
+        const cacheReadTokens = usage?.inputTokenDetails?.cacheReadTokens;
+
+        console.log('[Cache Debug] Iteration', iteration, {
+          inputTokens: usage?.inputTokens,
+          outputTokens: usage?.outputTokens,
+          cacheReadTokens,
+          inputTokenDetails: JSON.stringify(usage?.inputTokenDetails),
+        });
+
+        send({
+          type: 'usage',
+          usage: {
+            promptTokens: usage?.inputTokens,
+            completionTokens: usage?.outputTokens,
+            cachedContentTokenCount: cacheReadTokens,
+          },
+        });
 
         // Store raw output verbatim as assistant message
         messages.push({ role: 'assistant', content: fullOutput });

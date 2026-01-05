@@ -1,6 +1,13 @@
 # Changelog
 
-Last Updated: 2026-01-04
+Last Updated: 2026-01-05
+
+## 2026-01-05: Shell Execution + Code Cleanup
+
+- Enabled real shell command execution via `curl` (allowlisted) with timeout protection
+- Added cache usage telemetry to SSE stream for monitoring Gemini KV cache efficiency
+- Removed test skills and unused `shell.ts` tool; relocated skills to `.skills/` directory
+- Fixed CSS overflow issues in ChatMessage component with `break-all` for long strings
 
 ## 2025-01-04: Shell Commands + Chat Interface
 

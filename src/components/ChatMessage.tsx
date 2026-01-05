@@ -26,7 +26,7 @@ function parseContent(content: string): React.ReactNode[] {
     parts.push(
       <span
         key={match.index}
-        className="inline-flex items-center gap-1 px-2 py-0.5 bg-zinc-800 border border-zinc-700 rounded font-mono text-sm text-green-400"
+        className="inline-flex items-center gap-1 px-2 py-0.5 bg-zinc-800 border border-zinc-700 rounded font-mono text-sm text-green-400 break-all"
       >
         <span className="text-zinc-500">$</span>
         {match[1].trim()}
@@ -56,7 +56,7 @@ export default function ChatMessage({ message }: ChatMessageProps) {
     return (
       <div className="flex justify-end">
         <div className="max-w-[80%] px-4 py-3 bg-blue-600 text-white rounded-2xl rounded-br-md">
-          <p className="whitespace-pre-wrap">{message.content}</p>
+          <p className="whitespace-pre-wrap break-all">{message.content}</p>
         </div>
       </div>
     );
@@ -70,7 +70,7 @@ export default function ChatMessage({ message }: ChatMessageProps) {
             <div className="w-2 h-2 rounded-full bg-green-500" />
             <span className="text-xs text-zinc-400 font-mono">Terminal</span>
           </div>
-          <pre className="p-3 text-sm font-mono text-zinc-300 whitespace-pre-wrap overflow-x-auto">
+          <pre className="p-3 text-sm font-mono text-zinc-300 whitespace-pre-wrap break-all">
             {message.content}
           </pre>
         </div>
@@ -82,7 +82,7 @@ export default function ChatMessage({ message }: ChatMessageProps) {
   return (
     <div className="flex justify-start">
       <div className="max-w-[80%] px-4 py-3 bg-zinc-800 text-zinc-100 rounded-2xl rounded-bl-md">
-        <div className="whitespace-pre-wrap">{parsedContent}</div>
+        <div className="whitespace-pre-wrap break-all">{parsedContent}</div>
       </div>
     </div>
   );

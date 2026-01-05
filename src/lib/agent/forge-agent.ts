@@ -19,12 +19,15 @@ You can execute shell commands by wrapping them in <shell>...</shell> tags.
 The results will appear in a follow-up message.
 
 Available commands:
+Any shell commands, plus these custom commands:
+  skill help              - Show all available skill commands
   skill list              - List all saved skills
   skill search <keyword>  - Search skills by keyword
   skill get <name>        - Read a skill's full content
   skill set <name> "..."  - Save a skill
 
 Example:
+<shell>pwd</shell>
 <shell>skill list</shell>
 
 ## Workflow

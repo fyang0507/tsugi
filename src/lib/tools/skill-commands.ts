@@ -2,10 +2,67 @@ import fs from 'fs/promises';
 import path from 'path';
 import matter from 'gray-matter';
 import Fuse from 'fuse.js';
+import { exec } from 'child_process';
+import { promisify } from 'util';
 
-const SKILLS_DIR = '.forge/skills';
+const execAsync = promisify(exec);
+
+const SKILLS_DIR = '.skills';
+const SHELL_TIMEOUT_MS = 10000;
+const ALLOWED_SHELL_COMMANDS = ['curl'];
+const MAX_OUTPUT_LENGTH = 5000;
 
 export type CommandHandler = (args: string) => string | Promise<string>;
+
+async function runShellCommand(command: string): Promise<string> {
+  const [cmd] = command.trim().split(/\s+/);
+
+  if (!ALLOWED_SHELL_COMMANDS.includes(cmd)) {
+    return `Command "${cmd}" not allowed. Allowed: ${ALLOWED_SHELL_COMMANDS.join(', ')}`;
+  }
+
+  try {
+    const { stdout, stderr } = await execAsync(command, {
+      timeout: SHELL_TIMEOUT_MS,
+      maxBuffer: 1024 * 1024, // 1MB
+    });
+    return [stdout, stderr].filter(Boolean).join('\n').trim() || '(no output)';
+  } catch (error) {
+    if (error instanceof Error) {
+      if ('killed' in error && error.killed) {
+        return `Error: Command timed out (${SHELL_TIMEOUT_MS / 1000}s)`;
+      }
+      return `Error: ${error.message}`;
+    }
+    return 'Error: Unknown error';
+  }
+}
+
+function truncate(output: string): string {
+  if (output.length <= MAX_OUTPUT_LENGTH) return output;
+  return output.slice(0, MAX_OUTPUT_LENGTH) + '\n... (truncated)';
+}
+
+/**
+ * Execute a command - tries skill commands first, then shell commands
+ */
+export async function executeCommand(command: string): Promise<string> {
+  const skillCommands = createSkillCommands();
+  const sortedCommands = Object.keys(skillCommands).sort((a, b) => b.length - a.length);
+
+  // Try skill commands first
+  for (const cmd of sortedCommands) {
+    if (command === cmd || command.startsWith(cmd + ' ')) {
+      const args = command.slice(cmd.length).trim();
+      const result = await skillCommands[cmd](args);
+      return truncate(result);
+    }
+  }
+
+  // Fall back to shell execution
+  const result = await runShellCommand(command);
+  return truncate(result);
+}
 
 export function createSkillCommands(): Record<string, CommandHandler> {
   return {
