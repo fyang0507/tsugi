@@ -2,18 +2,27 @@
 
 ## Product Vision
 
-Agentic framework where AI agents learn from YouTube tutorials (and/or other online resources) and codify learnings into reusable Claude Code-style skills.
-
-**MVP Scope:** Watch YouTube → Extract Knowledge → Write SKILL.md
+Agentic framework where AI agents learn from online resources (YouTube, docs) and codify learnings into reusable skills.
 
 **Core Value:** Run 1 = Research + Skill Creation. Run 2 = Skill Lookup + Skip Research.
 
-## Architecture Notes
+Skills encode two knowledge types:
+- **Procedural**: Integration gotchas, validation rules, error patterns
+- **Preferences**: User's taxonomies, classification rules, domain constraints
 
-- **Gemini Built-in Tools**: Use `google.tools.googleSearch({})` and `google.tools.urlContext({})` for research - don't build custom research tools
-- **Custom Shell Commands**: Skill operations via command handlers (`skill list/search/get/set`), inspired by [notion-agent](https://github.com/fyang0507/notion-agent/blob/main/src/skills/podcast/index.ts)
-- **Skills Storage**: `.forge/skills/[name]/SKILL.md` with YAML frontmatter (name, description)
-- **No Gemini Filesystem**: Gemini code execution can't access app filesystem - skill I/O handled server-side
+## Architecture
+
+- **Agent**: Gemini with built-in grounding (`googleSearch`, `urlContext`) - no custom research tools
+- **Shell**: Auto-execution via `<shell>` tags; allowlisted commands only (`curl`)
+- **Skills CLI**: `skill list/search/get/set` commands handled server-side
+- **Storage**: `.skills/[name]/SKILL.md` with YAML frontmatter
+
+## Tech Stack
+
+- Next.js + React frontend with SSE streaming
+- Gemini API with KV caching for context persistence
+- Parts-based message rendering (reasoning, tools, text, sources)
 
 ## Project Memory
-MEMORY/ holds plans and context docs. Check when needing more background.
+
+`MEMORY/` holds plans, progress logs, and proposals. Check `MEMORY/changelog.md` for recent updates.
