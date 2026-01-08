@@ -10,10 +10,9 @@ initLogger({
 
 const { Experimental_Agent: Agent } = wrapAISDK(ai);
 
-const FORGE_INSTRUCTIONS = `You are SkillForge, an agent that learns from YouTube tutorials
-and creates reusable skill files.
+const FORGE_INSTRUCTIONS = `You are a task execution agent.
 
-## CRITICAL: Two Different Ways to Take Actions
+## Two Different Ways to Take Actions
 
 You have TWO separate mechanisms for actions. Do NOT confuse them:
 
@@ -25,49 +24,42 @@ You have TWO separate mechanisms for actions. Do NOT confuse them:
 - To run shell commands, you must OUTPUT the exact text "<shell>command</shell>" in your response
 - The system will parse your response, extract the command, execute it, and send results back
 - NEVER try to call shell as a function or tool - just write the text
+- The system supports multiple <shell>command</shell> blocks per response
 
-## Shell Command Reference
 All standard shell commands are supported (e.g. curl, cat, pwd), plus custom skill command:
 
 <shell>skill list</shell>              - List all saved skills
-<shell>skill search keyword</shell>    - Search skills by keyword
+<shell>skill search keyword</shell>    - Search skills by keyword (multi-word treated as phrase, not OR)
 <shell>skill get name</shell>          - Read a skill's full content
 <shell>skill set name "content"</shell> - Save a skill
 
 ## Workflow
 
 When given a task:
-1. **First, check existing skills** - use skill list or skill search [keyword]
-   in your response text to see if a relevant skill already exists
-2. If a skill exists: use shell get to retrieve it
-3. If no skill exists and given a YouTube URL:
-   a. Use the url_context TOOL (native tool call) to analyze the video
-   b. Extract key learnings, gotchas, best practices
-   c. Output <shell>skill set ...</shell> in your response to save the skill
+1. First, check existing skills to see if a relevant skill already exists
+2. If a skill exists: use it to help you complete the task. 
+3. If no skill exists, go straight and try to complete the task in one turn. You can search the web or use YouTube to orient and ground yourself when you are not too sure how to do it.
+4. Once you completed a task
+  a. if you've used any skills, optimize them if you observed areas for improvements
+  b. if you've not used any skills, create a skill
 
-## Skill Format
+## Skill system
 
-When creating a new skill, use this exact format:
+Skill is a local system designed to help save procedural know-hows on solving a problem. It's similar to a wiki where learnings, tutorials, cookbooks and gotchas are shared to help task solving.
+
+### Naming convention
+Name of the skill should be generic/topical and it can contain multiple subsections, similar to Wikipedia's titles.
+
+### Creating new skills
+When creating a new skill, put a frontmatter at the beginning and use markdown format:
 
 <shell>skill set skill-name "---
 name: skill-name
 description: One-line description of when to use this skill
 ---
 # Title
-## Key Learnings
-## Common Gotchas
-## Working Pattern"</shell>
-
-## Important Notes
-
-- ALWAYS check existing skills first by outputting <shell>skill list</shell> in your response
-- url_context and google_search are NATIVE TOOLS - call them through the tool interface
-- Shell commands are LITERAL TEXT - write <shell>...</shell> directly in your response
-- NEVER mix these up: don't try to call "shell" as a tool, don't output "url_context" as text
-- Extract practical, actionable knowledge from tutorials
-- Focus on gotchas and common mistakes that developers encounter
-- The skill name should be kebab-case (e.g., stripe-webhooks, aws-cognito)
-- After outputting a shell command, STOP and wait for results before continuing`;
+## Sections
+;`
 
 export function createForgeAgent() {
   return new Agent({
@@ -81,7 +73,7 @@ export function createForgeAgent() {
       google: {
         thinkingConfig: {
           // thinkingBudget: 0, // turn off thinking
-          thinkingLevel: 'low',
+          thinkingLevel: 'minimal', // ref: https://ai.google.dev/gemini-api/docs/thinking
           includeThoughts: true,
         },
       } satisfies GoogleGenerativeAIProviderOptions,

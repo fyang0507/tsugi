@@ -11,7 +11,7 @@ interface Message {
 }
 
 interface SSEEvent {
-  type: 'text' | 'reasoning' | 'tool-call' | 'tool-result' | 'agent-tool-call' | 'agent-tool-result' | 'source' | 'iteration-end' | 'done' | 'error' | 'usage';
+  type: 'text' | 'reasoning' | 'tool-call' | 'tool-result' | 'agent-tool-call' | 'agent-tool-result' | 'source' | 'iteration-end' | 'done' | 'error' | 'usage' | 'raw-content' | 'tool-output';
   content?: string;
   command?: string;
   result?: string;
@@ -31,6 +31,9 @@ interface SSEEvent {
     reasoningTokens?: number;
   };
   executionTimeMs?: number;
+  // For KV cache support
+  rawContent?: string;
+  toolOutput?: string;
 }
 
 function createSSEStream() {
@@ -177,6 +180,9 @@ export async function POST(req: Request) {
           executionTimeMs,
         });
 
+        // Send raw content for KV cache support
+        send({ type: 'raw-content', rawContent: fullOutput });
+
         // Store raw output verbatim as assistant message
         messages.push({ role: 'assistant', content: fullOutput });
 
@@ -205,6 +211,9 @@ export async function POST(req: Request) {
           content: formatToolResults(executions),
         };
         messages.push(toolMessage);
+
+        // Send tool output for KV cache support
+        send({ type: 'tool-output', toolOutput: toolMessage.content });
 
         send({ type: 'iteration-end', hasMoreCommands: true });
       }

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { Message, MessagePart } from '@/hooks/useForgeChat';
 import { MessageStats } from './MessageStats';
 
@@ -47,27 +48,30 @@ function ReasoningPart({ part }: { part: MessagePart }) {
   );
 }
 
-// Render a tool (terminal) part - collapsible
+// Render a tool (terminal) part - collapsible (styled like AgentToolPart for consistency)
 function ToolPart({ part }: { part: MessagePart }) {
   const [expanded, setExpanded] = useState(false);
   const isLoading = !part.content;
 
   return (
-    <div className="my-2 bg-zinc-900 border border-zinc-800 rounded-lg overflow-hidden">
+    <div className="my-2">
       <button
         onClick={() => setExpanded(!expanded)}
-        className="w-full px-3 py-1.5 bg-zinc-800 border-b border-zinc-700 flex items-center gap-2 hover:bg-zinc-750 transition-colors"
+        className="flex items-center gap-2 text-sm text-zinc-400 hover:text-zinc-300 transition-colors"
       >
         <ChevronIcon expanded={expanded} />
         <div className={`w-2 h-2 rounded-full ${isLoading ? 'bg-yellow-500 animate-pulse' : 'bg-green-500'}`} />
-        <span className="text-xs text-zinc-400 font-mono flex-1 text-left truncate">
+        <span className="font-mono text-zinc-400 truncate max-w-[400px]">
           $ {part.command}
         </span>
+        {isLoading && <span className="text-zinc-500 italic">running...</span>}
       </button>
       {expanded && (
-        <pre className="p-3 text-sm font-mono text-zinc-300 whitespace-pre-wrap break-all max-h-[300px] overflow-y-auto">
-          {part.content || <span className="text-zinc-500">Running...</span>}
-        </pre>
+        <div className="mt-1 ml-5 text-xs bg-zinc-900 rounded p-2 max-h-[200px] overflow-y-auto">
+          <pre className="font-mono text-zinc-300 whitespace-pre-wrap break-all">
+            {part.content || <span className="text-zinc-500">Running...</span>}
+          </pre>
+        </div>
       )}
     </div>
   );
@@ -135,7 +139,37 @@ function TextPart({ content }: { content: string }) {
   if (!content.trim()) return null;
   return (
     <div className="prose prose-invert prose-sm max-w-none prose-p:my-2 prose-headings:my-3 prose-ul:my-2 prose-ol:my-2 prose-li:my-0.5 prose-pre:bg-zinc-900 prose-pre:border prose-pre:border-zinc-700">
-      <ReactMarkdown>{content}</ReactMarkdown>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={{
+          // Properly render links with URL handling
+          a: ({ href, children }) => (
+            <a
+              href={href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-400 hover:text-blue-300 underline break-all"
+            >
+              {children}
+            </a>
+          ),
+          // Ensure code blocks handle long content
+          code: ({ className, children, ...props }) => {
+            const isInline = !className;
+            return isInline ? (
+              <code className="bg-zinc-800 px-1 py-0.5 rounded text-sm break-all" {...props}>
+                {children}
+              </code>
+            ) : (
+              <code className={`${className} break-all`} {...props}>
+                {children}
+              </code>
+            );
+          },
+        }}
+      >
+        {content}
+      </ReactMarkdown>
     </div>
   );
 }

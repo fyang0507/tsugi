@@ -1,6 +1,12 @@
 # Changelog
 
-Last Updated: 2026-01-05
+Last Updated: 2026-01-07
+
+## 2026-01-07: KV Cache Conversation Fix
+
+- Fixed multi-iteration conversation reconstruction breaking KV cache prefix matching
+- Added `AgentIteration` interface to properly track each agentic loop iteration with its rawContent and toolOutput
+- Changed apiMessages builder to expand iterations in correct order (assistant → tool output → assistant...)
 
 ## 2026-01-05: Token Usage Stats
 

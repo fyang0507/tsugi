@@ -29,18 +29,26 @@ export interface CumulativeStats {
   messageCount: number;
 }
 
+// Represents one iteration of the agentic loop (model output + optional tool execution)
+export interface AgentIteration {
+  rawContent: string;          // Model output for this iteration
+  toolOutput?: string;         // Tool output that follows (if any)
+}
+
 export interface Message {
   id: string;
   role: 'user' | 'assistant';
   parts: MessagePart[];
+  rawContent: string;          // For user messages: the input. For assistant: legacy/unused
   timestamp: Date;
   stats?: MessageStats;
+  iterations?: AgentIteration[];  // For assistant messages: each agentic loop iteration
 }
 
 export type ChatStatus = 'ready' | 'streaming' | 'error';
 
 interface SSEEvent {
-  type: 'text' | 'reasoning' | 'tool-call' | 'tool-result' | 'agent-tool-call' | 'agent-tool-result' | 'source' | 'iteration-end' | 'done' | 'error' | 'usage';
+  type: 'text' | 'reasoning' | 'tool-call' | 'tool-result' | 'agent-tool-call' | 'agent-tool-result' | 'source' | 'iteration-end' | 'done' | 'error' | 'usage' | 'raw-content' | 'tool-output';
   content?: string;
   command?: string;
   result?: string;
@@ -61,6 +69,9 @@ interface SSEEvent {
     reasoningTokens?: number;
   };
   executionTimeMs?: number;
+  // For KV cache support
+  rawContent?: string;
+  toolOutput?: string;
 }
 
 function generateId(): string {
@@ -86,6 +97,7 @@ export function useForgeChat() {
     messageCount: 0,
   });
   const abortControllerRef = useRef<AbortController | null>(null);
+  const iterationsRef = useRef<AgentIteration[]>([]);
 
   const sendMessage = useCallback(async (content: string) => {
     if (status === 'streaming') return;
@@ -93,19 +105,37 @@ export function useForgeChat() {
     setStatus('streaming');
     setError(null);
 
+    // Reset refs for new message
+    iterationsRef.current = [];
+
     // Add user message
     const userMessage: Message = {
       id: generateId(),
       role: 'user',
       parts: [{ type: 'text', content }],
+      rawContent: content,  // User content is already raw
       timestamp: new Date(),
     };
 
-    // Build messages array for API - flatten parts to content string
-    const apiMessages = [...messages, userMessage].map((m) => ({
-      role: m.role,
-      content: m.parts.map((p) => (p.type === 'text' ? p.content : `[Shell Output]\n$ ${p.command}\n${p.content}`)).join(''),
-    }));
+    // Build messages array for API - expand assistant iterations to match server structure
+    const apiMessages: Array<{ role: string; content: string }> = [];
+    for (const m of [...messages, userMessage]) {
+      if (m.role === 'user') {
+        // User messages are simple
+        apiMessages.push({ role: 'user', content: m.rawContent });
+      } else if (m.iterations && m.iterations.length > 0) {
+        // Assistant messages: expand iterations to match server's conversation structure
+        for (const iter of m.iterations) {
+          apiMessages.push({ role: 'assistant', content: iter.rawContent });
+          if (iter.toolOutput) {
+            apiMessages.push({ role: 'user', content: `[Shell Output]\n${iter.toolOutput}` });
+          }
+        }
+      } else {
+        // Fallback for messages without iterations (legacy or empty)
+        apiMessages.push({ role: m.role, content: m.rawContent });
+      }
+    }
 
     setMessages((prev) => [...prev, userMessage]);
 
@@ -166,6 +196,7 @@ export function useForgeChat() {
         id: assistantId,
         role: 'assistant',
         parts: [],
+        rawContent: '',  // Will be set on 'done' event
         timestamp: new Date(),
       },
     ]);
@@ -320,6 +351,19 @@ export function useForgeChat() {
                 break;
               }
 
+              case 'raw-content':
+                // Start a new iteration with this raw content
+                iterationsRef.current.push({ rawContent: event.rawContent || '' });
+                break;
+
+              case 'tool-output':
+                // Attach tool output to the most recent iteration
+                if (event.toolOutput && iterationsRef.current.length > 0) {
+                  const lastIter = iterationsRef.current[iterationsRef.current.length - 1];
+                  lastIter.toolOutput = event.toolOutput;
+                }
+                break;
+
               case 'iteration-end':
                 // No need to create new messages - we keep building the same one
                 break;
@@ -374,11 +418,21 @@ export function useForgeChat() {
                   messageCount: prev.messageCount + 1,
                 }));
 
-                // Update message with final parts and stats
+                // Update message with final parts, stats, and iterations
                 const finalParts = [...parts];
+                const finalIterations = iterationsRef.current.length > 0
+                  ? [...iterationsRef.current]
+                  : undefined;
                 setMessages((prev) =>
                   prev.map((m) =>
-                    m.id === assistantId ? { ...m, parts: finalParts, stats: finalStats } : m
+                    m.id === assistantId
+                      ? {
+                          ...m,
+                          parts: finalParts,
+                          stats: finalStats,
+                          iterations: finalIterations,
+                        }
+                      : m
                   )
                 );
                 setStatus('ready');
