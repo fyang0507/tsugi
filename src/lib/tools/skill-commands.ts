@@ -9,7 +9,7 @@ const execAsync = promisify(exec);
 
 const SKILLS_DIR = '.skills';
 const SHELL_TIMEOUT_MS = 10000;
-const ALLOWED_SHELL_COMMANDS = ['curl', 'cat', 'ls', 'head', 'tail', 'find', 'tree'];
+const ALLOWED_SHELL_COMMANDS = ['curl', 'cat', 'ls', 'head', 'tail', 'find', 'tree', 'jq', 'grep', 'export'];
 const MAX_OUTPUT_LENGTH = 5000;
 
 export type CommandHandler = (args: string) => string | Promise<string>;
