@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 
 export interface MessagePart {
   type: 'text' | 'reasoning' | 'tool' | 'agent-tool' | 'sources';
@@ -85,8 +85,13 @@ function extractUrls(text: string): string[] {
   return text.match(urlRegex) || [];
 }
 
-export function useForgeChat() {
-  const [messages, setMessages] = useState<Message[]>([]);
+export interface UseForgeChatOptions {
+  initialMessages?: Message[];  // Load from DB on conversation switch
+  onMessageComplete?: (message: Message, index: number) => void;  // Called after each message is finalized
+}
+
+export function useForgeChat(options?: UseForgeChatOptions) {
+  const [messages, setMessages] = useState<Message[]>(options?.initialMessages ?? []);
   const [status, setStatus] = useState<ChatStatus>('ready');
   const [error, setError] = useState<string | null>(null);
   const [cumulativeStats, setCumulativeStats] = useState<CumulativeStats>({
@@ -99,6 +104,38 @@ export function useForgeChat() {
   });
   const abortControllerRef = useRef<AbortController | null>(null);
   const iterationsRef = useRef<AgentIteration[]>([]);
+
+  // Reset messages when initialMessages changes (conversation switch)
+  useEffect(() => {
+    if (options?.initialMessages) {
+      setMessages(options.initialMessages);
+      // Recalculate cumulative stats from loaded messages
+      const stats = options.initialMessages.reduce(
+        (acc, m) => {
+          if (m.stats) {
+            acc.totalPromptTokens += m.stats.promptTokens || 0;
+            acc.totalCompletionTokens += m.stats.completionTokens || 0;
+            acc.totalCachedTokens += m.stats.cachedTokens || 0;
+            acc.totalReasoningTokens += m.stats.reasoningTokens || 0;
+            acc.totalExecutionTimeMs += m.stats.executionTimeMs || 0;
+          }
+          if (m.role === 'assistant') {
+            acc.messageCount += 1;
+          }
+          return acc;
+        },
+        {
+          totalPromptTokens: 0,
+          totalCompletionTokens: 0,
+          totalCachedTokens: 0,
+          totalReasoningTokens: 0,
+          totalExecutionTimeMs: 0,
+          messageCount: 0,
+        }
+      );
+      setCumulativeStats(stats);
+    }
+  }, [options?.initialMessages]);
 
   const sendMessage = useCallback(async (content: string) => {
     if (status === 'streaming') return;
@@ -122,7 +159,6 @@ export function useForgeChat() {
     const apiMessages: Array<{ role: string; content: string }> = [];
     for (const m of [...messages, userMessage]) {
       if (m.role === 'user') {
-        // User messages are simple
         apiMessages.push({ role: 'user', content: m.rawContent });
       } else if (m.iterations && m.iterations.length > 0) {
         // Assistant messages: expand iterations to match server's conversation structure
@@ -132,10 +168,8 @@ export function useForgeChat() {
             apiMessages.push({ role: 'user', content: `[Shell Output]\n${iter.toolOutput}` });
           }
         }
-      } else {
-        // Fallback for messages without iterations (legacy or empty)
-        apiMessages.push({ role: m.role, content: m.rawContent });
       }
+      // Skip assistant messages without iterations (shouldn't happen in normal flow)
     }
 
     setMessages((prev) => [...prev, userMessage]);
@@ -441,18 +475,37 @@ export function useForgeChat() {
                 const finalIterations = iterationsRef.current.length > 0
                   ? [...iterationsRef.current]
                   : undefined;
+
+                const finalAssistantMessage: Message = {
+                  id: assistantId,
+                  role: 'assistant',
+                  parts: finalParts,
+                  rawContent: '',
+                  timestamp: new Date(),
+                  stats: finalStats,
+                  iterations: finalIterations,
+                };
+
                 setMessages((prev) =>
                   prev.map((m) =>
-                    m.id === assistantId
-                      ? {
-                          ...m,
-                          parts: finalParts,
-                          stats: finalStats,
-                          iterations: finalIterations,
-                        }
-                      : m
+                    m.id === assistantId ? finalAssistantMessage : m
                   )
                 );
+
+                // Call persistence callbacks
+                // Calculate the index based on current messages length
+                // User message was already added, so userIndex = prev.length - 2 (before assistant)
+                // Assistant index = prev.length - 1
+                setMessages((prev) => {
+                  const userIdx = prev.length - 2;
+                  const assistantIdx = prev.length - 1;
+                  if (options?.onMessageComplete) {
+                    options.onMessageComplete(userMessage, userIdx);
+                    options.onMessageComplete(finalAssistantMessage, assistantIdx);
+                  }
+                  return prev;
+                });
+
                 setStatus('ready');
                 break;
               }
@@ -479,7 +532,7 @@ export function useForgeChat() {
     } finally {
       abortControllerRef.current = null;
     }
-  }, [messages, status]);
+  }, [messages, status, options]);
 
   const clearMessages = useCallback(() => {
     setMessages([]);
@@ -505,6 +558,7 @@ export function useForgeChat() {
 
   return {
     messages,
+    setMessages,
     status,
     error,
     cumulativeStats,

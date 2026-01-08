@@ -11,6 +11,7 @@
   "dependencies": {
     "@ai-sdk/google": "^3.0.6",
     "@braintrust/otel": "^0.1.2",
+    "@libsql/client": "^0.17.0",
     "@tailwindcss/typography": "^0.5.19",
     "@vercel/otel": "^2.1.0",
     "ai": "^6.0.19",

@@ -1,6 +1,15 @@
 # Changelog
 
-Last Updated: 2026-01-07
+Last Updated: 2026-01-08
+
+## 2026-01-08: Conversation Persistence + Sidebar
+
+- Implemented SQLite persistence with conversations/messages tables and full CRUD API routes
+- Added collapsible sidebar with conversation history grouped by date (Today/Yesterday/Last 7 days/etc)
+- Fixed race conditions in message persistence using refs (`currentIdRef`, `isSwitchingRef`)
+- Enforced single "New conversation" limit - clicking New Chat switches to existing empty conversation
+- Smart delete behavior: deleting "New conversation" switches to another existing conversation
+- Fixed duplicate message saving with `messageCountRef` index check; removed legacy fallback for KV cache
 
 ## 2026-01-07: KV Cache Conversation Fix
 
