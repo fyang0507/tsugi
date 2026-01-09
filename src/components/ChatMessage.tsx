@@ -6,8 +6,33 @@ import remarkGfm from 'remark-gfm';
 import { Message, MessagePart } from '@/hooks/useForgeChat';
 import { MessageStats } from './MessageStats';
 
+export interface SkillSuggestion {
+  learned: string;
+  skillToUpdate?: string | null;
+}
+
 interface ChatMessageProps {
   message: Message;
+  onCodifySkill?: (suggestion: SkillSuggestion) => void;
+  isCodifying?: boolean;
+}
+
+// Parse skill suggestion marker from text content
+function parseSkillSuggestion(content: string): SkillSuggestion | null {
+  const match = content.match(/<!--\s*SKILL_SUGGESTION:\s*(\{[^}]+\})\s*-->/);
+  if (match) {
+    try {
+      return JSON.parse(match[1]) as SkillSuggestion;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+// Remove skill suggestion marker from displayed content
+function stripSkillSuggestion(content: string): string {
+  return content.replace(/<!--\s*SKILL_SUGGESTION:\s*\{[^}]+\}\s*-->/g, '').trim();
 }
 
 // Chevron icon component
@@ -142,9 +167,10 @@ function AgentToolPart({ part }: { part: MessagePart }) {
   );
 }
 
-// Render a text part with markdown
+// Render a text part with markdown (strips skill suggestion marker)
 function TextPart({ content }: { content: string }) {
-  if (!content.trim()) return null;
+  const cleanContent = stripSkillSuggestion(content);
+  if (!cleanContent.trim()) return null;
   return (
     <div className="prose prose-invert prose-sm max-w-none prose-p:my-2 prose-headings:my-3 prose-ul:my-2 prose-ol:my-2 prose-li:my-0.5 prose-pre:bg-zinc-900 prose-pre:border prose-pre:border-zinc-700">
       <ReactMarkdown
@@ -176,7 +202,7 @@ function TextPart({ content }: { content: string }) {
           },
         }}
       >
-        {content}
+        {cleanContent}
       </ReactMarkdown>
     </div>
   );
@@ -207,7 +233,7 @@ function SourcesPart({ part }: { part: MessagePart }) {
   );
 }
 
-export default function ChatMessage({ message }: ChatMessageProps) {
+export default function ChatMessage({ message, onCodifySkill, isCodifying }: ChatMessageProps) {
   // User message
   if (message.role === 'user') {
     const textContent = message.parts[0]?.content || '';
@@ -222,6 +248,13 @@ export default function ChatMessage({ message }: ChatMessageProps) {
 
   // Assistant message - render parts inline
   const hasParts = message.parts.length > 0;
+
+  // Check for skill suggestion in text parts
+  const allTextContent = message.parts
+    .filter(p => p.type === 'text')
+    .map(p => p.content)
+    .join('\n');
+  const skillSuggestion = parseSkillSuggestion(allTextContent);
 
   return (
     <div className="flex justify-start">
@@ -244,6 +277,44 @@ export default function ChatMessage({ message }: ChatMessageProps) {
               return <TextPart key={index} content={part.content} />;
             })}
             <MessageStats stats={message.stats} />
+            {skillSuggestion && onCodifySkill && (
+              <div className="mt-3 pt-3 border-t border-zinc-700">
+                <button
+                  onClick={() => onCodifySkill(skillSuggestion)}
+                  disabled={isCodifying}
+                  className={`flex items-center gap-2 px-3 py-1.5 text-sm text-white rounded-lg transition-colors disabled:bg-zinc-600 disabled:cursor-not-allowed ${
+                    skillSuggestion.skillToUpdate
+                      ? 'bg-amber-600 hover:bg-amber-500'
+                      : 'bg-emerald-600 hover:bg-emerald-500'
+                  }`}
+                >
+                  {isCodifying ? (
+                    <>
+                      <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <span>{skillSuggestion.skillToUpdate ? 'Updating...' : 'Codifying...'}</span>
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        {skillSuggestion.skillToUpdate ? (
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        ) : (
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                        )}
+                      </svg>
+                      <span>{skillSuggestion.skillToUpdate ? 'Update Skill' : 'Codify as Skill'}</span>
+                    </>
+                  )}
+                </button>
+                <p className="mt-1 text-xs text-zinc-500">
+                  {skillSuggestion.skillToUpdate ? (
+                    <>Update <code className="bg-zinc-700 px-1 rounded">{skillSuggestion.skillToUpdate}</code>: {skillSuggestion.learned}</>
+                  ) : (
+                    <>Learned: {skillSuggestion.learned}</>
+                  )}
+                </p>
+              </div>
+            )}
           </>
         ) : (
           <div className="text-zinc-500 text-sm">Thinking...</div>

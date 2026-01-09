@@ -137,7 +137,7 @@ export function useForgeChat(options?: UseForgeChatOptions) {
     }
   }, [options?.initialMessages]);
 
-  const sendMessage = useCallback(async (content: string) => {
+  const sendMessage = useCallback(async (content: string, mode: 'task' | 'codify-skill' = 'task') => {
     if (status === 'streaming') return;
 
     setStatus('streaming');
@@ -244,7 +244,7 @@ export function useForgeChat(options?: UseForgeChatOptions) {
       const response = await fetch('/api/agent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: apiMessages }),
+        body: JSON.stringify({ messages: apiMessages, mode }),
         signal: abortControllerRef.current.signal,
       });
 

@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useForgeChat, Message } from '@/hooks/useForgeChat';
 import { useConversations } from '@/hooks/useConversations';
-import ChatMessage from './ChatMessage';
+import ChatMessage, { SkillSuggestion } from './ChatMessage';
 import { CumulativeStatsBar } from './CumulativeStats';
 import { Sidebar } from './Sidebar';
 
@@ -17,6 +17,7 @@ const EXAMPLE_PROMPTS = [
 export default function ForgeDemo() {
   const [input, setInput] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [codifyingMessageId, setCodifyingMessageId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const router = useRouter();
@@ -210,6 +211,21 @@ export default function ForgeDemo() {
     inputRef.current?.focus();
   }
 
+  // Handle skill codification request
+  const handleCodifySkill = useCallback(async (messageId: string, suggestion: SkillSuggestion) => {
+    if (isStreaming || codifyingMessageId) return;
+
+    setCodifyingMessageId(messageId);
+
+    // Send a message to trigger skill codification agent
+    const codifyPrompt = suggestion.skillToUpdate
+      ? `Update the existing skill "${suggestion.skillToUpdate}" based on the conversation above. What was learned/corrected: "${suggestion.learned}"`
+      : `Analyze the conversation above and codify the procedural knowledge learned about: "${suggestion.learned}"`;
+    await sendMessage(codifyPrompt, 'codify-skill');
+
+    setCodifyingMessageId(null);
+  }, [isStreaming, codifyingMessageId, sendMessage]);
+
   return (
     <div className="flex h-screen bg-zinc-950 text-zinc-100">
       {/* Sidebar */}
@@ -237,7 +253,7 @@ export default function ForgeDemo() {
             </div>
             {messages.length > 0 && (
               <button
-                onClick={handleNewChat}
+                onClick={() => handleNewChat()}
                 className="px-3 py-1.5 text-sm text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 rounded-lg transition-colors"
               >
                 New chat
@@ -288,7 +304,12 @@ export default function ForgeDemo() {
               // Messages list
               <div className="space-y-4">
                 {messages.map((message) => (
-                  <ChatMessage key={message.id} message={message} />
+                  <ChatMessage
+                    key={message.id}
+                    message={message}
+                    onCodifySkill={(suggestion) => handleCodifySkill(message.id, suggestion)}
+                    isCodifying={codifyingMessageId === message.id}
+                  />
                 ))}
                 {error && (
                   <div className="flex justify-center">

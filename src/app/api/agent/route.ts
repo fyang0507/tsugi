@@ -1,9 +1,12 @@
 import { ModelMessage } from 'ai';
-import { createForgeAgent } from '@/lib/agent/forge-agent';
+import { createTaskAgent } from '@/lib/agent/task-agent';
+import { createSkillAgent } from '@/lib/agent/skill-agent';
 import { extractCommands, formatToolResults } from '@/lib/tools/command-parser';
 import { executeCommand } from '@/lib/tools/skill-commands';
 
 const MAX_ITERATIONS = 10;
+
+type AgentMode = 'task' | 'codify-skill';
 
 interface Message {
   role: 'user' | 'assistant' | 'tool';
@@ -92,7 +95,10 @@ function toModelMessages(messages: Message[]): ModelMessage[] {
 }
 
 export async function POST(req: Request) {
-  const { messages: initialMessages } = await req.json() as { messages: Message[] };
+  const { messages: initialMessages, mode = 'task' } = await req.json() as {
+    messages: Message[];
+    mode?: AgentMode;
+  };
 
   if (!initialMessages || !Array.isArray(initialMessages) || initialMessages.length === 0) {
     return Response.json({ error: 'Messages array is required' }, { status: 400 });
@@ -103,7 +109,7 @@ export async function POST(req: Request) {
   // Run the agent loop in the background
   (async () => {
     try {
-      const agent = createForgeAgent();
+      const agent = mode === 'codify-skill' ? createSkillAgent() : createTaskAgent();
       const messages: Message[] = [...initialMessages];
       let iteration = 0;
 
