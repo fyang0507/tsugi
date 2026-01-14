@@ -12,17 +12,21 @@ Skills encode two knowledge types:
 
 ## Architecture
 
-- **Agent**: Gemini with built-in grounding (`googleSearch`, `urlContext`) - no custom research tools
+**Dual-Agent System:**
+- **Task Agent** (`task-agent.ts`): Executes tasks, read-only skill access, suggests codification
+- **Skill Agent** (`skill-agent.ts`): Dedicated to analyzing transcripts and codifying/updating skills
+
+**Other Components:**
 - **Shell**: Auto-execution via `<shell>` tags; allowlisted commands only (`curl`)
 - **Skills CLI**: `skill list/search/get/set` commands handled server-side
-- **Storage**: `.skills/[name]/SKILL.md` with YAML frontmatter
+- **Storage**: Abstraction layer - LocalStorage (filesystem) for dev, CloudStorage (Vercel Blob + Turso) for prod
 
 ## Tech Stack
 
 - Next.js + React frontend with SSE streaming
-- Gemini API with KV caching for context persistence
+- Gemini API with KV caching and built-in grounding (`googleSearch`, `urlContext`)
 - Parts-based message rendering (reasoning, tools, text, sources)
-- SQLite db for message persistency
+- SQLite (Turso) for conversations + skills metadata
 
 ## Project Memory
 

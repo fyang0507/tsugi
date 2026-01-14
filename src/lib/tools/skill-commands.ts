@@ -69,7 +69,8 @@ export function createSkillCommands(): Record<string, CommandHandler> {
   skill search <keyword>                  - Search skills by keyword
   skill get <name>                        - Read a skill (includes file list)
   skill set <name> "..."                  - Write a skill
-  skill add-file <name> <filename> "..."  - Add a file to a skill directory`,
+  skill add-file <name> <filename> "..."  - Add a file to a skill directory
+  skill suggest "..." [--update="name"]   - Suggest codifying a learned procedure`,
 
     'skill list': async () => {
       const skills = await storage.list();
@@ -123,6 +124,24 @@ export function createSkillCommands(): Record<string, CommandHandler> {
         }
         return 'Error: Failed to add file';
       }
+    },
+
+    'skill suggest': (args) => {
+      // Parse: skill suggest "description" [--update="skill-name"]
+      const match = args.match(/^"([^"]+)"(?:\s+--update="([^"]+)")?$/);
+      if (!match) {
+        return JSON.stringify({
+          type: 'skill-suggestion-error',
+          error: 'Usage: skill suggest "description" [--update="skill-name"]',
+        });
+      }
+
+      const [, learned, skillToUpdate] = match;
+      return JSON.stringify({
+        type: 'skill-suggestion',
+        learned,
+        skillToUpdate: skillToUpdate || null,
+      });
     },
   };
 }

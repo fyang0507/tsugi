@@ -17,22 +17,24 @@ interface ChatMessageProps {
   isCodifying?: boolean;
 }
 
-// Parse skill suggestion marker from text content
-function parseSkillSuggestion(content: string): SkillSuggestion | null {
-  const match = content.match(/<!--\s*SKILL_SUGGESTION:\s*(\{[^}]+\})\s*-->/);
-  if (match) {
-    try {
-      return JSON.parse(match[1]) as SkillSuggestion;
-    } catch {
-      return null;
+// Parse skill suggestion from tool result (skill suggest command)
+function parseToolSkillSuggestion(parts: MessagePart[]): SkillSuggestion | null {
+  for (const part of parts) {
+    if (part.type === 'tool' && part.command?.startsWith('skill suggest')) {
+      try {
+        const result = JSON.parse(part.content);
+        if (result.type === 'skill-suggestion') {
+          return {
+            learned: result.learned,
+            skillToUpdate: result.skillToUpdate || null,
+          };
+        }
+      } catch {
+        // Not valid JSON or not a skill suggestion
+      }
     }
   }
   return null;
-}
-
-// Remove skill suggestion marker from displayed content
-function stripSkillSuggestion(content: string): string {
-  return content.replace(/<!--\s*SKILL_SUGGESTION:\s*\{[^}]+\}\s*-->/g, '').trim();
 }
 
 // Chevron icon component
@@ -167,10 +169,9 @@ function AgentToolPart({ part }: { part: MessagePart }) {
   );
 }
 
-// Render a text part with markdown (strips skill suggestion marker)
+// Render a text part with markdown
 function TextPart({ content }: { content: string }) {
-  const cleanContent = stripSkillSuggestion(content);
-  if (!cleanContent.trim()) return null;
+  if (!content.trim()) return null;
   return (
     <div className="prose prose-invert prose-sm max-w-none prose-p:my-2 prose-headings:my-3 prose-ul:my-2 prose-ol:my-2 prose-li:my-0.5 prose-pre:bg-zinc-900 prose-pre:border prose-pre:border-zinc-700">
       <ReactMarkdown
@@ -202,7 +203,7 @@ function TextPart({ content }: { content: string }) {
           },
         }}
       >
-        {cleanContent}
+        {content}
       </ReactMarkdown>
     </div>
   );
@@ -249,12 +250,8 @@ export default function ChatMessage({ message, onCodifySkill, isCodifying }: Cha
   // Assistant message - render parts inline
   const hasParts = message.parts.length > 0;
 
-  // Check for skill suggestion in text parts
-  const allTextContent = message.parts
-    .filter(p => p.type === 'text')
-    .map(p => p.content)
-    .join('\n');
-  const skillSuggestion = parseSkillSuggestion(allTextContent);
+  // Check for skill suggestion in tool results (from skill suggest command)
+  const skillSuggestion = parseToolSkillSuggestion(message.parts);
 
   return (
     <div className="flex justify-start">
