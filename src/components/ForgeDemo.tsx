@@ -7,7 +7,7 @@ import { useConversations } from '@/hooks/useConversations';
 import ChatMessage, { SkillSuggestion } from './ChatMessage';
 import { CumulativeStatsBar } from './CumulativeStats';
 import { Sidebar } from './Sidebar';
-import { SkillsPanel } from './SkillsPanel';
+import { useSkills } from '@/hooks/useSkills';
 
 const EXAMPLE_PROMPTS = [
   'What skills do I have?',
@@ -15,11 +15,88 @@ const EXAMPLE_PROMPTS = [
   'Search for skills about React hooks',
 ];
 
+// Full skill data for the detail view
+interface SkillDetail {
+  name: string;
+  description: string;
+  content: string;
+  files: string[];
+  updatedAt: string;
+}
+
+// Skill Detail Modal Component
+function SkillDetailModal({
+  skill,
+  onClose,
+}: {
+  skill: SkillDetail;
+  onClose: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      {/* Backdrop */}
+      <div className="absolute inset-0 bg-black/60" onClick={onClose} />
+
+      {/* Modal */}
+      <div className="relative bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden mx-4">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-700">
+          <div>
+            <h2 className="text-lg font-semibold text-zinc-100">{skill.name}</h2>
+            {skill.description && (
+              <p className="text-sm text-zinc-400 mt-0.5">{skill.description}</p>
+            )}
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 rounded-lg hover:bg-zinc-800 transition-colors"
+          >
+            <svg className="w-5 h-5 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="px-6 py-4 overflow-y-auto max-h-[calc(80vh-140px)]">
+          <pre className="text-sm text-zinc-300 whitespace-pre-wrap font-mono bg-zinc-800/50 rounded-lg p-4 overflow-x-auto">
+            {skill.content}
+          </pre>
+
+          {skill.files.length > 0 && (
+            <div className="mt-4">
+              <h3 className="text-sm font-medium text-zinc-400 mb-2">Additional Files</h3>
+              <div className="flex flex-wrap gap-2">
+                {skill.files.map((file) => (
+                  <span
+                    key={file}
+                    className="px-2 py-1 text-xs bg-zinc-800 text-zinc-300 rounded"
+                  >
+                    {file}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-3 border-t border-zinc-700 text-xs text-zinc-500">
+          Last updated: {new Date(skill.updatedAt).toLocaleString()}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ForgeDemo() {
   const [input, setInput] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [skillsPanelOpen, setSkillsPanelOpen] = useState(false);
   const [codifyingMessageId, setCodifyingMessageId] = useState<string | null>(null);
+  const [selectedSkill, setSelectedSkill] = useState<SkillDetail | null>(null);
+
+  // Skills management
+  const { skills, loading: skillsLoading, deleteSkill } = useSkills();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const router = useRouter();
@@ -245,6 +322,19 @@ export default function ForgeDemo() {
     setCodifyingMessageId(null);
   }, [isStreaming, codifyingMessageId, sendMessage, currentId, updateMode]);
 
+  // Handle viewing a skill's details
+  const handleSelectSkill = useCallback(async (name: string) => {
+    try {
+      const res = await fetch(`/api/skills/${encodeURIComponent(name)}`);
+      if (res.ok) {
+        const data = await res.json();
+        setSelectedSkill(data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch skill:', error);
+    }
+  }, []);
+
   return (
     <div className="flex h-screen bg-zinc-950 text-zinc-100">
       {/* Sidebar */}
@@ -257,6 +347,10 @@ export default function ForgeDemo() {
         onNew={handleNewChat}
         onDelete={handleDeleteConversation}
         onRename={renameConversation}
+        skills={skills}
+        skillsLoading={skillsLoading}
+        onDeleteSkill={deleteSkill}
+        onSelectSkill={handleSelectSkill}
       />
 
       {/* Main content */}
@@ -270,35 +364,14 @@ export default function ForgeDemo() {
                 Learn from YouTube tutorials and create reusable skills
               </p>
             </div>
-            <div className="flex items-center gap-2">
+            {messages.length > 0 && (
               <button
-                onClick={() => setSkillsPanelOpen(true)}
-                className="px-3 py-1.5 text-sm text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 rounded-lg transition-colors flex items-center gap-1.5"
+                onClick={() => handleNewChat()}
+                className="px-3 py-1.5 text-sm text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 rounded-lg transition-colors"
               >
-                <svg
-                  className="w-4 h-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={1.5}
-                    d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"
-                  />
-                </svg>
-                Skills
+                New chat
               </button>
-              {messages.length > 0 && (
-                <button
-                  onClick={() => handleNewChat()}
-                  className="px-3 py-1.5 text-sm text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 rounded-lg transition-colors"
-                >
-                  New chat
-                </button>
-              )}
-            </div>
+            )}
           </div>
         </header>
 
@@ -432,8 +505,13 @@ export default function ForgeDemo() {
         </div>
       </div>
 
-      {/* Skills Panel Modal */}
-      <SkillsPanel isOpen={skillsPanelOpen} onClose={() => setSkillsPanelOpen(false)} />
+      {/* Skill Detail Modal */}
+      {selectedSkill && (
+        <SkillDetailModal
+          skill={selectedSkill}
+          onClose={() => setSelectedSkill(null)}
+        />
+      )}
     </div>
   );
 }

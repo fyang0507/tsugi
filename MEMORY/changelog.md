@@ -2,6 +2,14 @@
 
 Last Updated: 2026-01-13
 
+## 2026-01-13: Sidebar Skills Pane (VSCode-style)
+
+- Moved skills list from modal to sidebar with collapsible sections (Chat History grows down, Skills pinned at bottom)
+- Created `useSkills` hook with 5s polling and optimistic delete
+- Fixed menu positioning with `position: fixed` + `getBoundingClientRect()` to escape parent overflow clipping
+- Deleted `SkillsPanel.tsx` modal; added `SkillDetailModal` for viewing skill content
+- Works with both LocalStorage (filesystem) and CloudStorage (Vercel Blob + Turso)
+
 ## 2026-01-13: Persist Agent Mode Across Conversation
 
 - Added `mode` column to conversations table with migration for existing DBs

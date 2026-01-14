@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import type { GroupedConversations, Conversation } from '@/hooks/useConversations';
+import type { SkillMeta } from '@/hooks/useSkills';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -12,6 +13,54 @@ interface SidebarProps {
   onNew: () => void;
   onDelete: (id: string) => void;
   onRename: (id: string, title: string) => void;
+  skills: SkillMeta[];
+  skillsLoading: boolean;
+  onDeleteSkill: (name: string) => void;
+  onSelectSkill: (name: string) => void;
+}
+
+// Collapsible Section Component
+function CollapsibleSection({
+  title,
+  count,
+  storageKey,
+  children,
+}: {
+  title: string;
+  count: number;
+  storageKey: string;
+  children: React.ReactNode;
+}) {
+  const [isCollapsed, setIsCollapsed] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    const stored = localStorage.getItem(`sidebar-collapsed-${storageKey}`);
+    return stored === 'true';
+  });
+
+  useEffect(() => {
+    localStorage.setItem(`sidebar-collapsed-${storageKey}`, String(isCollapsed));
+  }, [isCollapsed, storageKey]);
+
+  return (
+    <div className="flex flex-col min-h-0">
+      <button
+        onClick={() => setIsCollapsed(!isCollapsed)}
+        className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-zinc-400 hover:text-zinc-200 transition-colors"
+      >
+        <svg
+          className={`w-3 h-3 transition-transform ${isCollapsed ? '-rotate-90' : ''}`}
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+        <span className="uppercase tracking-wider">{title}</span>
+        <span className="ml-auto text-zinc-500">({count})</span>
+      </button>
+      {!isCollapsed && children}
+    </div>
+  );
 }
 
 function ConversationItem({
@@ -197,6 +246,153 @@ function ConversationGroup({
   );
 }
 
+// Skill Item Component
+function SkillItem({
+  skill,
+  onSelect,
+  onDelete,
+}: {
+  skill: SkillMeta;
+  onSelect: () => void;
+  onDelete: () => void;
+}) {
+  const [showMenu, setShowMenu] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [menuStyle, setMenuStyle] = useState<React.CSSProperties>({});
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+
+  const handleMenuToggle = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!showMenu && menuButtonRef.current) {
+      const rect = menuButtonRef.current.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const menuHeight = 80; // Approximate menu height
+
+      if (spaceBelow < menuHeight + 10) {
+        // Position above
+        setMenuStyle({
+          position: 'fixed',
+          right: window.innerWidth - rect.right,
+          bottom: window.innerHeight - rect.top + 4,
+        });
+      } else {
+        // Position below
+        setMenuStyle({
+          position: 'fixed',
+          right: window.innerWidth - rect.right,
+          top: rect.bottom + 4,
+        });
+      }
+    }
+    setShowMenu(!showMenu);
+  };
+
+  return (
+    <div
+      className="group relative flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-zinc-800 transition-colors cursor-pointer"
+      onClick={onSelect}
+    >
+      {/* Skill icon */}
+      <svg
+        className="w-4 h-4 text-zinc-400 flex-shrink-0"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24"
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={1.5}
+          d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"
+        />
+      </svg>
+
+      {/* Name and description */}
+      <div className="flex-1 min-w-0">
+        <div className="text-sm text-zinc-200 truncate">{skill.name}</div>
+        {skill.description && (
+          <div className="text-xs text-zinc-500 truncate">{skill.description}</div>
+        )}
+      </div>
+
+      {/* Actions menu */}
+      <div className="relative">
+        <button
+          ref={menuButtonRef}
+          onClick={handleMenuToggle}
+          className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-zinc-600 transition-opacity"
+        >
+          <svg
+            className="w-4 h-4 text-zinc-400"
+            fill="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <circle cx="12" cy="6" r="2" />
+            <circle cx="12" cy="12" r="2" />
+            <circle cx="12" cy="18" r="2" />
+          </svg>
+        </button>
+
+        {showMenu && (
+          <>
+            <div
+              className="fixed inset-0 z-10"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowMenu(false);
+                setShowDeleteConfirm(false);
+              }}
+            />
+            <div
+              className="z-50 bg-zinc-800 border border-zinc-700 rounded-lg shadow-lg py-1 min-w-[120px]"
+              style={menuStyle}
+            >
+              {showDeleteConfirm ? (
+                <>
+                  <div className="px-3 py-1.5 text-xs text-zinc-400">Delete this skill?</div>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDelete();
+                      setShowMenu(false);
+                      setShowDeleteConfirm(false);
+                    }}
+                    className="w-full px-3 py-1.5 text-sm text-red-400 hover:bg-zinc-700 text-left"
+                  >
+                    Yes, delete
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowDeleteConfirm(false);
+                    }}
+                    className="w-full px-3 py-1.5 text-sm text-zinc-200 hover:bg-zinc-700 text-left"
+                  >
+                    Cancel
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowDeleteConfirm(true);
+                  }}
+                  className="w-full px-3 py-1.5 text-sm text-red-400 hover:bg-zinc-700 text-left flex items-center gap-2"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                  Delete
+                </button>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function Sidebar({
   isOpen,
   onToggle,
@@ -206,7 +402,19 @@ export function Sidebar({
   onNew,
   onDelete,
   onRename,
+  skills,
+  skillsLoading,
+  onDeleteSkill,
+  onSelectSkill,
 }: SidebarProps) {
+  // Count total conversations
+  const totalConversations =
+    conversations.today.length +
+    conversations.yesterday.length +
+    conversations.lastWeek.length +
+    conversations.lastMonth.length +
+    conversations.older.length;
+
   return (
     <>
       {/* Toggle button (always visible) */}
@@ -249,7 +457,7 @@ export function Sidebar({
       >
         <div className="flex flex-col h-full pt-16 pb-4">
           {/* New Chat button */}
-          <div className="px-3 mb-4">
+          <div className="px-3 mb-4 flex-shrink-0">
             <button
               onClick={onNew}
               className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 transition-colors"
@@ -271,49 +479,91 @@ export function Sidebar({
             </button>
           </div>
 
-          {/* Conversation list */}
-          <div className="flex-1 overflow-y-auto px-2">
-            <ConversationGroup
-              title="Today"
-              conversations={conversations.today}
-              currentId={currentId}
-              onSelect={onSelect}
-              onDelete={onDelete}
-              onRename={onRename}
-            />
-            <ConversationGroup
-              title="Yesterday"
-              conversations={conversations.yesterday}
-              currentId={currentId}
-              onSelect={onSelect}
-              onDelete={onDelete}
-              onRename={onRename}
-            />
-            <ConversationGroup
-              title="Last 7 days"
-              conversations={conversations.lastWeek}
-              currentId={currentId}
-              onSelect={onSelect}
-              onDelete={onDelete}
-              onRename={onRename}
-            />
-            <ConversationGroup
-              title="Last 30 days"
-              conversations={conversations.lastMonth}
-              currentId={currentId}
-              onSelect={onSelect}
-              onDelete={onDelete}
-              onRename={onRename}
-            />
-            <ConversationGroup
-              title="Older"
-              conversations={conversations.older}
-              currentId={currentId}
-              onSelect={onSelect}
-              onDelete={onDelete}
-              onRename={onRename}
-            />
-          </div>
+          {/* Chat History Section (grows down, takes remaining space) */}
+          <CollapsibleSection
+            title="Chat History"
+            count={totalConversations}
+            storageKey="chat-history"
+          >
+            <div className="flex-1 overflow-y-auto px-2 min-h-0">
+              <ConversationGroup
+                title="Today"
+                conversations={conversations.today}
+                currentId={currentId}
+                onSelect={onSelect}
+                onDelete={onDelete}
+                onRename={onRename}
+              />
+              <ConversationGroup
+                title="Yesterday"
+                conversations={conversations.yesterday}
+                currentId={currentId}
+                onSelect={onSelect}
+                onDelete={onDelete}
+                onRename={onRename}
+              />
+              <ConversationGroup
+                title="Last 7 days"
+                conversations={conversations.lastWeek}
+                currentId={currentId}
+                onSelect={onSelect}
+                onDelete={onDelete}
+                onRename={onRename}
+              />
+              <ConversationGroup
+                title="Last 30 days"
+                conversations={conversations.lastMonth}
+                currentId={currentId}
+                onSelect={onSelect}
+                onDelete={onDelete}
+                onRename={onRename}
+              />
+              <ConversationGroup
+                title="Older"
+                conversations={conversations.older}
+                currentId={currentId}
+                onSelect={onSelect}
+                onDelete={onDelete}
+                onRename={onRename}
+              />
+            </div>
+          </CollapsibleSection>
+
+          {/* Spacer */}
+          <div className="flex-1 min-h-0" />
+
+          {/* Divider */}
+          <div className="border-t border-zinc-800 mx-2" />
+
+          {/* Skills Section (pinned at bottom, grows up) */}
+          <CollapsibleSection
+            title="Skills"
+            count={skills.length}
+            storageKey="skills"
+          >
+            <div className="flex-shrink-0 max-h-[40vh] overflow-y-auto px-2">
+              {skillsLoading ? (
+                <div className="flex items-center justify-center py-4">
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-zinc-400" />
+                </div>
+              ) : skills.length === 0 ? (
+                <div className="px-3 py-4 text-center text-zinc-500 text-sm">
+                  No skills yet
+                </div>
+              ) : (
+                <div className="space-y-0.5">
+                  {skills.map((skill) => (
+                    <SkillItem
+                      key={skill.name}
+                      skill={skill}
+                      onSelect={() => onSelectSkill(skill.name)}
+                      onDelete={() => onDeleteSkill(skill.name)}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          </CollapsibleSection>
         </div>
       </aside>
     </>
