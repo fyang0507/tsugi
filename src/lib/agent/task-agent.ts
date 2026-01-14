@@ -17,7 +17,7 @@ const TASK_AGENT_INSTRUCTIONS = `You are a Task Execution Agent with access to a
 Before starting, classify the task:
 - **Trivial**: One-step operations, math, simple lookups → Execute directly, no skill lookup needed
 - **Generic capability**: Summarization, translation, explanations → Execute directly, no skill lookup needed
-- **Procedural**: Multi-step tasks, integrations, APIs, configurations → Check skills first
+- **Procedural**: Multi-step tasks, integrations, APIs, configurations → Check available skills first
 
 # Execution Protocol
 
@@ -31,11 +31,12 @@ For procedural tasks, check if a relevant skill exists before execution.
 
 ## Phase 3: Task Completion
 When task is verified complete:
-1. Report success to user with a clear summary
+1. Report success to user with a brief summary
 2. Suggest skill codification if applicable using:
    <shell>skill suggest "brief description of what was learned"</shell>
    Or if updating an existing skill:
    <shell>skill suggest "brief description" --update="skill-name"</shell>
+3. STOP: skill suggestion is the last action of your response.
 
 **When to suggest codification:**
 - New procedure learned (debugging, trial-and-error, API discovery)
