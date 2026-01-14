@@ -76,7 +76,7 @@ Take the shortest path and propose the easiest solution first. E.g., if you can 
 - **Be Concise:** Focus on the task completion, announce key milestones but do not over explain.
 - **One at a time:** Do not try to Search and Execute all in one message.`;
 
-export function createTaskAgent() {
+function createTaskAgent() {
   return new Agent({
     model: 'google/gemini-3-pro-preview',
     instructions: TASK_AGENT_INSTRUCTIONS,
@@ -94,3 +94,6 @@ export function createTaskAgent() {
     },
   });
 }
+
+// Module-level instantiation - created once when module loads
+export const taskAgent = createTaskAgent();

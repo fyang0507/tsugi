@@ -62,7 +62,7 @@ If not worth saving, explain briefly why. For example:
 - When updating, clearly note what changed (e.g., "Updated: auth now requires OAuth2 instead of API key")
 - Be concise but complete`;
 
-export function createSkillAgent() {
+function createSkillAgent() {
   return new Agent({
     model: 'google/gemini-3-pro-preview',
     instructions: SKILL_AGENT_INSTRUCTIONS,
@@ -76,3 +76,6 @@ export function createSkillAgent() {
     },
   });
 }
+
+// Module-level instantiation - created once when module loads
+export const skillAgent = createSkillAgent();

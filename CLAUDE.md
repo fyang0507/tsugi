@@ -23,6 +23,7 @@ Skills encode two knowledge types:
 
 ## Tech Stack
 
+- **Package Manager**: `pnpm` (not npm)
 - Next.js + React frontend with SSE streaming
 - Gemini API with KV caching and built-in grounding (`googleSearch`, `urlContext`)
 - Parts-based message rendering (reasoning, tools, text, sources)

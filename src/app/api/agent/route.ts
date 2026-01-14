@@ -1,6 +1,6 @@
 import { ModelMessage } from 'ai';
-import { createTaskAgent } from '@/lib/agent/task-agent';
-import { createSkillAgent } from '@/lib/agent/skill-agent';
+import { taskAgent } from '@/lib/agent/task-agent';
+import { skillAgent } from '@/lib/agent/skill-agent';
 import { extractCommands, formatToolResults } from '@/lib/tools/command-parser';
 import { executeCommand } from '@/lib/tools/skill-commands';
 
@@ -109,7 +109,7 @@ export async function POST(req: Request) {
   // Run the agent loop in the background
   (async () => {
     try {
-      const agent = mode === 'codify-skill' ? createSkillAgent() : createTaskAgent();
+      const agent = mode === 'codify-skill' ? skillAgent : taskAgent;
       const messages: Message[] = [...initialMessages];
       let iteration = 0;
 
