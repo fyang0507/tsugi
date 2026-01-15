@@ -182,9 +182,75 @@ function AgentToolPart({ part }: { part: MessagePart }) {
   );
 }
 
+// COMPLETE status badge
+function CompleteBadge() {
+  return (
+    <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 rounded-full text-sm font-medium">
+      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+      </svg>
+      <span>COMPLETE</span>
+    </div>
+  );
+}
+
 // Render a text part with markdown
 function TextPart({ content }: { content: string }) {
   if (!content.trim()) return null;
+
+  const trimmed = content.trim();
+
+  // Exact match: just "COMPLETE"
+  if (trimmed === 'COMPLETE') {
+    return <CompleteBadge />;
+  }
+
+  // Check if ends with COMPLETE on own line
+  const lines = trimmed.split('\n');
+  const lastLine = lines[lines.length - 1].trim();
+  if (lastLine === 'COMPLETE' && lines.length > 1) {
+    const textWithoutComplete = lines.slice(0, -1).join('\n').trim();
+    return (
+      <>
+        {textWithoutComplete && (
+          <div className="prose prose-invert prose-sm max-w-none prose-p:my-2 prose-headings:my-3 prose-ul:my-2 prose-ol:my-2 prose-li:my-0.5 prose-pre:bg-zinc-900 prose-pre:border prose-pre:border-zinc-700">
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              components={{
+                a: ({ href, children }) => (
+                  <a
+                    href={href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-400 hover:text-blue-300 underline break-all"
+                  >
+                    {children}
+                  </a>
+                ),
+                code: ({ className, children, ...props }) => {
+                  const isInline = !className;
+                  return isInline ? (
+                    <code className="bg-zinc-800 px-1 py-0.5 rounded text-sm break-all" {...props}>
+                      {children}
+                    </code>
+                  ) : (
+                    <code className={`${className} break-all`} {...props}>
+                      {children}
+                    </code>
+                  );
+                },
+              }}
+            >
+              {textWithoutComplete}
+            </ReactMarkdown>
+          </div>
+        )}
+        <div className="mt-3"><CompleteBadge /></div>
+      </>
+    );
+  }
+
+  // Regular markdown rendering
   return (
     <div className="prose prose-invert prose-sm max-w-none prose-p:my-2 prose-headings:my-3 prose-ul:my-2 prose-ol:my-2 prose-li:my-0.5 prose-pre:bg-zinc-900 prose-pre:border prose-pre:border-zinc-700">
       <ReactMarkdown

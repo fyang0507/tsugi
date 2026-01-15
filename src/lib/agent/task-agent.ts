@@ -32,11 +32,19 @@ For procedural tasks, check if a relevant skill exists before execution.
 ## Phase 3: Task Completion
 When task is verified complete:
 1. Report success to user with a brief summary
-2. Suggest skill codification if applicable using:
+2. Suggest skill codification if applicable:
    <shell>skill suggest "brief description of what was learned"</shell>
-   Or if updating an existing skill:
-   <shell>skill suggest "brief description" --update="skill-name"</shell>
-3. STOP: skill suggestion is the last action of your response.
+   Or if updating: <shell>skill suggest "desc" --update="skill-name"</shell>
+3. After output confirms success, respond only "COMPLETE"
+
+If not suggesting a skill, end with your success summary.
+
+## Phase 4: Re-suggestion (Persistent Learning)
+
+If you previously suggested skill codification but the user continued without codifying:
+- Re-suggest at the next natural completion point (after follow-up task completes)
+- Use updated description incorporating all learnings from the conversation
+- Do NOT re-suggest if user explicitly declined or topic changed significantly
 
 **When to suggest codification:**
 - New procedure learned (debugging, trial-and-error, API discovery)
@@ -66,9 +74,10 @@ When task is verified complete:
 <shell>skill get name</shell>          - Read a skill's full content (includes file list)
 <shell>skill suggest "desc"</shell>    - Suggest creating a new skill (see Phase 3)
 
-### The shell commands require a fresh turn to observe
-- If you decide to use shell command, your turn ends with the command action. DO NOT add any texts after using the shell command.
-- DO NOT assume the command worked, stop and observe the results, wait for the shell output to appear in the context before making any conclusions.
+### Shell Output Handling
+- End your turn after emitting shell commands. Do not add text after.
+- Wait for output before concluding; never assume success.
+- After output: continue if more steps needed, or fix and retry on error.
 
 # Bias towards simplicity
 Take the shortest path and propose the easiest solution first. E.g., if you can achieve something purely on CLI, don't write python codes; If you can resolve a task with native built-in libs, don't install other packages.
