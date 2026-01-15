@@ -25,3 +25,37 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Custom scrollbar styling for dark theme */
+html,
+body,
+*,
+*::before,
+*::after {
+  scrollbar-width: thin !important;
+  scrollbar-color: #3f3f46 #18181b !important;
+}
+
+::-webkit-scrollbar {
+  width: 8px !important;
+  height: 8px !important;
+  background: #18181b;
+}
+
+::-webkit-scrollbar-track {
+  background: #18181b !important;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: #3f3f46 !important;
+  border-radius: 4px !important;
+  border: 2px solid #18181b !important;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: #52525b !important;
+}
+
+::-webkit-scrollbar-corner {
+  background: #18181b !important;
+}

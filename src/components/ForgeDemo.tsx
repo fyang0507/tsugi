@@ -454,7 +454,7 @@ export default function ForgeDemo() {
                   onKeyDown={handleKeyDown}
                   placeholder="Ask me to learn from a YouTube video or search skills..."
                   rows={1}
-                  className="w-full px-4 py-3 bg-zinc-900 border border-zinc-800 rounded-xl text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-zinc-600 resize-none overflow-y-auto"
+                  className="w-full px-4 py-3 bg-zinc-900 border border-zinc-800 rounded-xl text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-zinc-600 resize-none overflow-hidden"
                   style={{
                     minHeight: '48px',
                     maxHeight: '200px',

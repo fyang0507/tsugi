@@ -79,6 +79,8 @@ function ConversationItem({
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState(conversation.title);
   const [showMenu, setShowMenu] = useState(false);
+  const [menuStyle, setMenuStyle] = useState<React.CSSProperties>({});
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
 
   const handleDoubleClick = () => {
     setIsEditing(true);
@@ -148,8 +150,28 @@ function ConversationItem({
       {!isEditing && (
         <div className="relative">
           <button
+            ref={menuButtonRef}
             onClick={(e) => {
               e.stopPropagation();
+              if (!showMenu && menuButtonRef.current) {
+                const rect = menuButtonRef.current.getBoundingClientRect();
+                const spaceBelow = window.innerHeight - rect.bottom;
+                const menuHeight = 80;
+
+                if (spaceBelow < menuHeight + 10) {
+                  setMenuStyle({
+                    position: 'fixed',
+                    right: window.innerWidth - rect.right,
+                    bottom: window.innerHeight - rect.top + 4,
+                  });
+                } else {
+                  setMenuStyle({
+                    position: 'fixed',
+                    right: window.innerWidth - rect.right,
+                    top: rect.bottom + 4,
+                  });
+                }
+              }
               setShowMenu(!showMenu);
             }}
             className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-zinc-600 transition-opacity"
@@ -171,7 +193,10 @@ function ConversationItem({
                 className="fixed inset-0 z-10"
                 onClick={() => setShowMenu(false)}
               />
-              <div className="absolute right-0 top-full mt-1 z-20 bg-zinc-800 border border-zinc-700 rounded-lg shadow-lg py-1 min-w-[120px]">
+              <div
+                className="z-50 bg-zinc-800 border border-zinc-700 rounded-lg shadow-lg py-1 min-w-[120px]"
+                style={menuStyle}
+              >
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
