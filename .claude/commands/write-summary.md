@@ -14,7 +14,7 @@ Your primary responsibilities:
 **REQUIRED MEMORY UPDATES:**
 - Add 2-3 bullet summary to changelog.md highlighting what was accomplished
 - Create comprehensive task summary in YYYY-MM-DD-{task-name}.md documenting the complete implementation
-- Update relevant permanent documents with key learnings and new patterns discovered
+- Update relevant permanent documents with key learnings and new patterns discovered in the progress/ directory
 
 **QUALITY STANDARDS:**
 - Be precise and factual - document what actually changed, not intentions
