@@ -2,6 +2,13 @@
 
 Last Updated: 2026-01-16
 
+## 2026-01-16: Sandbox Sharing Between TaskAgent and SkillAgent
+
+- **Cross-request sandbox reuse**: Added `sandboxId` support - frontend tracks sandbox ID and passes it in subsequent requests
+- **SSE event**: New `sandbox_created` event emits sandbox ID after first shell command execution
+- **Vercel SDK reconnect**: `VercelSandboxExecutor` uses `Sandbox.get({ sandboxId })` to reconnect to existing sandbox
+- **Local sandbox**: `LocalSandboxExecutor` uses sandboxId as directory name (`.sandbox/{id}`) for file persistence
+
 ## 2026-01-16: UI-Based Environment Variable Injection
 
 - **API Keys panel**: Collapsible UI above input with key/value form, validation (uppercase, alphanumeric+underscore), masked values, delete buttons

@@ -24,7 +24,7 @@ describe.skipIf(SKIP_VERCEL_TESTS)('VercelSandboxExecutor', () => {
   describe('execute', () => {
     it('should execute Python code', async () => {
       const exec = getExecutor();
-      const result = await exec.execute('python3', ['-c', 'print("Hello from Vercel Sandbox")']);
+      const result = await exec.execute('python3 -c "print(\'Hello from Vercel Sandbox\')"');
 
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain('Hello from Vercel Sandbox');
@@ -32,17 +32,14 @@ describe.skipIf(SKIP_VERCEL_TESTS)('VercelSandboxExecutor', () => {
 
     it('should return command output with stderr', async () => {
       const exec = getExecutor();
-      const result = await exec.execute('python3', [
-        '-c',
-        'import sys; sys.stderr.write("error output")',
-      ]);
+      const result = await exec.execute('python3 -c "import sys; sys.stderr.write(\'error output\')"');
 
       expect(result.stderr).toContain('error output');
     });
 
     it('should handle command failures', async () => {
       const exec = getExecutor();
-      const result = await exec.execute('python3', ['-c', 'raise Exception("test error")']);
+      const result = await exec.execute('python3 -c "raise Exception(\'test error\')"');
 
       expect(result.exitCode).not.toBe(0);
     });
@@ -84,7 +81,7 @@ describe.skipIf(SKIP_VERCEL_TESTS)('VercelSandboxExecutor', () => {
     it('should stop the sandbox without errors', async () => {
       const exec = new VercelSandboxExecutor();
       // Initialize sandbox
-      await exec.execute('echo', ['init']);
+      await exec.execute('echo init');
       // Cleanup should not throw
       await expect(exec.cleanup()).resolves.toBeUndefined();
     });

@@ -50,7 +50,7 @@ export interface Message {
 export type ChatStatus = 'ready' | 'streaming' | 'error';
 
 interface SSEEvent {
-  type: 'text' | 'reasoning' | 'tool-call' | 'tool-start' | 'tool-result' | 'agent-tool-call' | 'agent-tool-result' | 'source' | 'iteration-end' | 'done' | 'error' | 'usage' | 'raw-content' | 'tool-output' | 'sandbox_timeout';
+  type: 'text' | 'reasoning' | 'tool-call' | 'tool-start' | 'tool-result' | 'agent-tool-call' | 'agent-tool-result' | 'source' | 'iteration-end' | 'done' | 'error' | 'usage' | 'raw-content' | 'tool-output' | 'sandbox_timeout' | 'sandbox_created';
   content?: string;
   command?: string;
   result?: string;
@@ -74,6 +74,8 @@ interface SSEEvent {
   // For KV cache support
   rawContent?: string;
   toolOutput?: string;
+  // For sandbox sharing across requests
+  sandboxId?: string;
 }
 
 function generateId(): string {
@@ -96,6 +98,7 @@ export function useForgeChat(options?: UseForgeChatOptions) {
   const [status, setStatus] = useState<ChatStatus>('ready');
   const [error, setError] = useState<string | null>(null);
   const [sandboxTimeoutMessage, setSandboxTimeoutMessage] = useState<string | null>(null);
+  const [currentSandboxId, setCurrentSandboxId] = useState<string | null>(null);
   const [cumulativeStats, setCumulativeStats] = useState<CumulativeStats>({
     totalPromptTokens: 0,
     totalCompletionTokens: 0,
@@ -237,7 +240,7 @@ export function useForgeChat(options?: UseForgeChatOptions) {
       const response = await fetch('/api/agent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: apiMessages, mode, conversationId, env }),
+        body: JSON.stringify({ messages: apiMessages, mode, conversationId, env, sandboxId: currentSandboxId }),
         signal: abortControllerRef.current.signal,
       });
 
@@ -505,6 +508,13 @@ export function useForgeChat(options?: UseForgeChatOptions) {
 
               case 'sandbox_timeout':
                 setSandboxTimeoutMessage(event.content || 'Sandbox timed out due to inactivity.');
+                setCurrentSandboxId(null); // Clear sandbox ID on timeout
+                break;
+
+              case 'sandbox_created':
+                if (event.sandboxId) {
+                  setCurrentSandboxId(event.sandboxId);
+                }
                 break;
 
               case 'error':
@@ -529,12 +539,13 @@ export function useForgeChat(options?: UseForgeChatOptions) {
     } finally {
       abortControllerRef.current = null;
     }
-  }, [messages, status, options]);
+  }, [messages, status, options, currentSandboxId]);
 
   const clearMessages = useCallback(() => {
     setMessages([]);
     setError(null);
     setStatus('ready');
+    setCurrentSandboxId(null); // Clear sandbox ID when conversation is cleared
     setCumulativeStats({
       totalPromptTokens: 0,
       totalCompletionTokens: 0,
@@ -568,5 +579,7 @@ export function useForgeChat(options?: UseForgeChatOptions) {
     stop,
     sandboxTimeoutMessage,
     clearSandboxTimeout,
+    currentSandboxId,
+    setCurrentSandboxId,
   };
 }

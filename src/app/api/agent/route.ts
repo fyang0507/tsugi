@@ -3,7 +3,7 @@ import { skillAgent } from '@/lib/agent/skill-agent';
 import { extractCommands, formatToolResults } from '@/lib/tools/command-parser';
 import { executeCommand } from '@/lib/tools/command-executor';
 import { toModelMessages, type APIMessage } from '@/lib/messages/transform';
-import { clearSandboxExecutor, SandboxTimeoutError } from '@/lib/sandbox/executor';
+import { clearSandboxExecutor, getSandboxExecutor, SandboxTimeoutError } from '@/lib/sandbox/executor';
 import { mergePlaygroundEnv } from '@/lib/tools/playground-env';
 
 const MAX_ITERATIONS = 10;
@@ -11,7 +11,8 @@ const MAX_ITERATIONS = 10;
 type AgentMode = 'task' | 'codify-skill';
 
 interface SSEEvent {
-  type: 'text' | 'reasoning' | 'tool-call' | 'tool-start' | 'tool-result' | 'agent-tool-call' | 'agent-tool-result' | 'source' | 'iteration-end' | 'done' | 'error' | 'usage' | 'raw-content' | 'tool-output' | 'sandbox_timeout';
+  type: 'text' | 'reasoning' | 'tool-call' | 'tool-start' | 'tool-result' | 'agent-tool-call' | 'agent-tool-result' | 'source' | 'iteration-end' | 'done' | 'error' | 'usage' | 'raw-content' | 'tool-output' | 'sandbox_timeout' | 'sandbox_created';
+  sandboxId?: string;
   content?: string;
   command?: string;
   result?: string;
@@ -74,12 +75,16 @@ function createSSEStream() {
 
 
 export async function POST(req: Request) {
-  const { messages: initialMessages, mode = 'task', conversationId, env: uiEnv } = await req.json() as {
+  const { messages: initialMessages, mode = 'task', conversationId, env: uiEnv, sandboxId: requestSandboxId } = await req.json() as {
     messages: APIMessage[];
     mode?: AgentMode;
     conversationId?: string;
     env?: Record<string, string>;
+    sandboxId?: string;
   };
+
+  // Initialize executor with sandboxId if reconnecting to existing sandbox
+  const executor = await getSandboxExecutor(requestSandboxId);
 
   // Merge UI env vars with .env.playground (local dev) or Vercel env (production)
   const mergedEnv = mergePlaygroundEnv(uiEnv);
@@ -93,6 +98,7 @@ export async function POST(req: Request) {
   // Track abort state for sandbox cleanup
   let aborted = false;
   let sandboxUsed = false;
+  let sandboxIdEmitted = false;
 
   // Listen for client abort (when user stops the agent)
   req.signal.addEventListener('abort', () => {
@@ -270,6 +276,15 @@ export async function POST(req: Request) {
             const result = await executeCommand(command, { env: mergedEnv });
             executions.push({ command, result });
             send({ type: 'tool-result', command, result });
+
+            // Emit sandbox_created on first shell command when no sandboxId was provided
+            if (!sandboxIdEmitted && !requestSandboxId && sandboxUsed) {
+              const currentSandboxId = executor.getSandboxId();
+              if (currentSandboxId) {
+                send({ type: 'sandbox_created', sandboxId: currentSandboxId });
+                sandboxIdEmitted = true;
+              }
+            }
           } catch (error) {
             if (error instanceof SandboxTimeoutError) {
               send({

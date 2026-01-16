@@ -42,11 +42,17 @@ const ALLOWED_COMMANDS = [
 
 export class LocalSandboxExecutor implements SandboxExecutor {
   private sandboxDir: string;
+  private sandboxId: string;
   private lastActivityTime: number = Date.now();
   private isDead: boolean = false;
 
-  constructor(sandboxDir: string = '.sandbox') {
-    this.sandboxDir = sandboxDir;
+  constructor(sandboxId: string = 'default') {
+    this.sandboxId = sandboxId;
+    this.sandboxDir = path.join('.sandbox', sandboxId);
+  }
+
+  getSandboxId(): string | null {
+    return this.sandboxId;
   }
 
   isAlive(): boolean {

@@ -10,9 +10,11 @@ export class VercelSandboxExecutor implements SandboxExecutor {
   private workDir: string;
   private isDead: boolean = false;
   private lastActivityTime: number = Date.now();
+  private existingSandboxId: string | null = null;
 
-  constructor(workDir: string = WORK_DIR) {
+  constructor(workDir: string = WORK_DIR, existingSandboxId?: string) {
     this.workDir = workDir;
+    this.existingSandboxId = existingSandboxId || null;
   }
 
   /**
@@ -43,13 +45,24 @@ export class VercelSandboxExecutor implements SandboxExecutor {
     if (!this.sandbox) {
       // Dynamic import to avoid loading @vercel/sandbox in local environment
       const { Sandbox } = await import('@vercel/sandbox');
-      this.sandbox = await Sandbox.create({
-        runtime: 'python3.13',
-        timeout: IDLE_TIMEOUT_MS,
-      });
+
+      if (this.existingSandboxId) {
+        // Reconnect to existing sandbox (cross-request sharing)
+        this.sandbox = await Sandbox.get({ sandboxId: this.existingSandboxId });
+      } else {
+        // Create new sandbox
+        this.sandbox = await Sandbox.create({
+          runtime: 'python3.13',
+          timeout: IDLE_TIMEOUT_MS,
+        });
+      }
       this.lastActivityTime = Date.now();
     }
     return this.sandbox;
+  }
+
+  getSandboxId(): string | null {
+    return this.sandbox?.sandboxId ?? null;
   }
 
   isAlive(): boolean {

@@ -47,15 +47,31 @@ export interface SandboxExecutor {
 
   /** Check if sandbox is still alive */
   isAlive(): boolean;
+
+  /** Get the current sandbox ID for reconnection across requests */
+  getSandboxId(): string | null;
 }
 
 let cachedExecutor: SandboxExecutor | null = null;
 
 /**
  * Get the appropriate sandbox executor for the current environment.
- * Returns a cached instance for session-scoped sandbox reuse.
+ * If sandboxId is provided, reconnects to an existing sandbox (cross-request sharing).
+ * Otherwise returns a cached instance for session-scoped sandbox reuse.
  */
-export async function getSandboxExecutor(): Promise<SandboxExecutor> {
+export async function getSandboxExecutor(sandboxId?: string): Promise<SandboxExecutor> {
+  // If reconnecting to a specific sandbox, create new executor with that ID
+  if (sandboxId) {
+    if (process.env.VERCEL === '1') {
+      const { VercelSandboxExecutor } = await import('./vercel-executor');
+      cachedExecutor = new VercelSandboxExecutor(undefined, sandboxId);
+    } else {
+      const { LocalSandboxExecutor } = await import('./local-executor');
+      cachedExecutor = new LocalSandboxExecutor(sandboxId);
+    }
+    return cachedExecutor;
+  }
+
   if (cachedExecutor) {
     return cachedExecutor;
   }
