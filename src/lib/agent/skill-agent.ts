@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { GoogleGenerativeAIProviderOptions } from '@ai-sdk/google';
 import { initLogger, wrapAISDK } from "braintrust";
 import { processTranscript } from './tools/process-transcript';
+import { getRequestContext } from './request-context';
 
 initLogger({
   projectName: "skill-forge-agent",
@@ -14,8 +15,7 @@ const { Experimental_Agent: Agent } = wrapAISDK(ai);
 const SKILL_AGENT_INSTRUCTIONS = `You are a Skill Codification Agent.
 
 # First Step - REQUIRED
-Call the get-processed-transcript tool with the conversation ID to get the summary of the task conversation.
-The conversation ID will be provided in the first user message.
+Call the get-processed-transcript tool to get the summary of the task conversation.
 You have no context about the task until you call this tool.
 
 # Shell Commands (Literal Text)
@@ -116,15 +116,17 @@ Shell output returns as a user message. After receiving it:
 
 /**
  * Tool that fetches and processes the transcript from the database.
- * Accepts conversationId as parameter to fetch the correct conversation.
+ * Reads conversationId and sandboxId from request context (set by route.ts).
  */
 const processedTranscriptTool = {
-  description: 'Get the processed transcript from the previous task conversation. Call this FIRST with the conversation ID to get context for skill creation.',
-  inputSchema: z.object({
-    conversationId: z.string().describe('The conversation ID to fetch the transcript from'),
-  }),
-  execute: async ({ conversationId }: { conversationId: string }) => {
-    return processTranscript(conversationId);
+  description: 'Get the processed transcript from the previous task conversation. Call this FIRST to get context for skill creation.',
+  inputSchema: z.object({}),
+  execute: async () => {
+    const { conversationId, sandboxId } = getRequestContext();
+    if (!conversationId) {
+      return 'Error: No conversation ID in request context';
+    }
+    return processTranscript(conversationId, sandboxId);
   },
 };
 

@@ -5,6 +5,7 @@ import { executeCommand } from '@/lib/tools/command-executor';
 import { toModelMessages, type APIMessage } from '@/lib/messages/transform';
 import { clearSandboxExecutor, getSandboxExecutor, SandboxTimeoutError } from '@/lib/sandbox/executor';
 import { mergePlaygroundEnv } from '@/lib/tools/playground-env';
+import { runWithRequestContext } from '@/lib/agent/request-context';
 
 const MAX_ITERATIONS = 10;
 
@@ -89,7 +90,12 @@ export async function POST(req: Request) {
   // Merge UI env vars with .env.playground (local dev) or Vercel env (production)
   const mergedEnv = mergePlaygroundEnv(uiEnv);
 
-  if (!initialMessages || !Array.isArray(initialMessages) || initialMessages.length === 0) {
+  // Validate: task mode requires messages, codify-skill mode requires conversationId
+  if (mode === 'codify-skill') {
+    if (!conversationId) {
+      return Response.json({ error: 'conversationId is required for codify-skill mode' }, { status: 400 });
+    }
+  } else if (!initialMessages || !Array.isArray(initialMessages) || initialMessages.length === 0) {
     return Response.json({ error: 'Messages array is required' }, { status: 400 });
   }
 
@@ -107,6 +113,9 @@ export async function POST(req: Request) {
 
   // Run the agent loop in the background
   (async () => {
+    // Wrap with request context so skill agent's tool can access conversationId/sandboxId
+    const currentSandboxId = requestSandboxId || executor.getSandboxId() || undefined;
+    await runWithRequestContext({ conversationId, sandboxId: currentSandboxId }, async () => {
     try {
       // For codify-skill mode: build transcript from history, create agent with closure
       // The skill agent gets a blank context and calls get-processed-transcript tool
@@ -115,12 +124,8 @@ export async function POST(req: Request) {
 
       if (mode === 'codify-skill') {
         agent = skillAgent;
-        // Get the last message (the codify prompt) and inject conversationId
-        const lastMessage = initialMessages[initialMessages.length - 1];
-        const messageWithContext = conversationId
-          ? { ...lastMessage, content: `[Conversation ID: ${conversationId}]\n\n${lastMessage.content}` }
-          : lastMessage;
-        messages = [messageWithContext];
+        // Minimal trigger message - agent instructions tell it to call get-processed-transcript first
+        messages = [{ role: 'user', content: 'Start' }];
       } else {
         agent = taskAgent;
         messages = [...initialMessages];
@@ -343,6 +348,7 @@ export async function POST(req: Request) {
       }
       close();
     }
+    });
   })();
 
   return new Response(stream, {
