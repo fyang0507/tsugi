@@ -37,6 +37,11 @@ executeCommand() [command-executor.ts]
 - Gemini API with KV caching and built-in grounding (`googleSearch`, `urlContext`)
 - SQLite (Turso) for conversations + skills metadata
 
+## Testing
+
+**Runner:** Vitest (`pnpm test`)
+**Coverage:** Unit tests for storage, sandbox executors, and command execution.
+
 ## Project Memory
 
 `MEMORY/` directory holds plans, changelogs, and completed issues. Check `MEMORY/changelog.md` for recent updates.
