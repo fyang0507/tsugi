@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { getProModel } from './model-provider';
+import { google } from '@ai-sdk/google';
+import { getFlashModel } from './model-provider';
 import { getAgent } from './braintrust-wrapper';
 import { executeCommand } from '@/lib/tools/command-executor';
 import { getRequestContext } from './request-context';
@@ -9,8 +10,7 @@ const TASK_AGENT_INSTRUCTIONS = `You are a Task Execution Agent with access to a
 # Task Classification
 
 Before starting, classify the task:
-- **Trivial**: One-step operations, math, simple lookups → Execute directly, no skill lookup needed
-- **Generic capability**: Summarization, translation, explanations → Execute directly, no skill lookup needed
+- **Trivial & Generic capability**: One-step operations, math, summarization, explanations, etc. → Execute directly, no skill lookup needed
 - **Procedural**: Multi-step tasks, integrations, APIs, configurations → Check available skills first
 
 # Execution Protocol
@@ -20,7 +20,7 @@ For procedural tasks, check if a relevant skill exists before execution.
 
 ## Phase 2: Plan, Execution & Verification
 - If a skill exists: Use it directly.
-- If no skill exists: Formulate a plan, then execute it. Briefly state your plan before moving to execution.
+- If no skill exists: Formulate a plan, then execute it.
 - Verification: You must verify the result. If not working, keep trying with a different method.
 
 ## Phase 3: Task Completion
@@ -28,13 +28,9 @@ When task is verified complete:
 1. Report success to user with a brief summary
 2. Suggest skill codification if applicable by calling execute_shell with:
    skill suggest "brief description of what was learned" --name="suggested-skill-name"
-
-   The backend will respond with one of:
-   - \`status: 'success'\` - No similar skills found, proceed with codification
-   - \`status: 'guidance'\` - Similar skill(s) found. Review with \`skill get <name>\`, then re-run with --force to proceed
 3. After output confirms success, respond only "COMPLETE"
 
-If not suggesting a skill, end with your success summary.
+If not suggesting a skill, end with a success summary.
 
 ## Phase 4: Re-suggestion (Persistent Learning)
 
@@ -47,16 +43,19 @@ If you previously suggested skill codification but the user continued without co
 - New procedure learned (debugging, trial-and-error, API discovery)
 - Used an existing skill BUT had to deviate, fix errors, or discover the skill was outdated/incomplete
 
-**When NOT to suggest:**
-- Trivial tasks (math, simple lookups)
-- Generic model capabilities (summarization, translation)
+**When NOT to suggest codification:**
+- Trivial tasks & Generic model capabilities(math, simple lookups, summarization, translation, etc.)
 - One-step operations
 - Existing skill worked perfectly as documented
 
 # Action Mechanisms
 
 ## Tools
-You have one tool: **execute_shell** - Run shell commands in sandbox
+You have three tools:
+
+1. **execute_shell** - Run any shell commands in sandbox (file ops, API calls, skill commands)
+2. **google_search** - Search the web for information (research, grounding, exploration, etc.)
+3. **url_context** - Fetch and analyze content from a URL
 
 ### How to Use execute_shell
 Call the execute_shell tool with a "command" parameter containing the shell command to run.
@@ -68,7 +67,7 @@ Examples of tool calls:
 
 **IMPORTANT:** Do NOT output shell commands as text. Always use the execute_shell tool.
 
-#### Skill System Commands
+#### Skill System Shell Commands
 Pass these to execute_shell:
 - skill list - List all saved skills
 - skill search keyword - Search skills
@@ -114,22 +113,7 @@ Shell commands automatically run in the sandbox directory. Prefer pure bash when
 When in doubt, make it visible via execute_shell. Hidden work in reasoning can't be codified into skills.`;
 
 const executeShellTool = {
-  description: `Execute shell commands in the sandbox environment.
-
-Use for:
-- File operations (ls, cat, mkdir, etc.)
-- API calls (curl with headers and data)
-- Running scripts (python3 script.py)
-- Skill system commands (skill list, skill get, skill search, etc.)
-
-Skill commands (prefix with "skill "):
-- skill list - List all saved skills
-- skill search <keyword> - Search skills
-- skill get <name> - Read skill content
-- skill copy-to-sandbox <name> <file> - Copy skill file to sandbox
-- skill suggest "desc" --name="name" - Suggest codifying a skill
-
-Results are returned as text.`,
+  description: `Execute shell commands in the sandbox environment. Results are returned as text.`,
   inputSchema: z.object({
     command: z.string().describe('The shell command to execute'),
   }),
@@ -142,11 +126,11 @@ Results are returned as text.`,
 function createTaskAgent() {
   const Agent = getAgent();
   return new Agent({
-    model: getProModel(),
+    model: getFlashModel(),
     instructions: TASK_AGENT_INSTRUCTIONS,
     tools: {
-      // Note: google_search and url_context removed because Gemini doesn't support
-      // combining provider-defined tools with custom function tools
+      google_search: google.tools.googleSearch({}),
+      url_context: google.tools.urlContext({}),
       execute_shell: executeShellTool,
     },
     temperature: 0.05,
