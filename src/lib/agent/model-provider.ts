@@ -2,8 +2,14 @@ import { google as defaultGoogle, createGoogleGenerativeAI } from '@ai-sdk/googl
 import type { GoogleGenerativeAIProvider } from '@ai-sdk/google';
 
 const MODEL_NAMES = {
-  pro: 'gemini-3-pro-preview',
-  flash: 'gemini-3-flash',
+  gateway: {
+    pro: 'gemini-3-pro-preview',
+    flash: 'gemini-3-flash',
+  },
+  direct: {
+    pro: 'gemini-3-pro-preview',
+    flash: 'gemini-3-flash-preview',
+  },
 } as const;
 
 type ProviderMode = 'direct' | 'gateway';
@@ -45,11 +51,13 @@ export function getGoogleProvider(): GoogleGenerativeAIProvider {
 
 export function getProModel() {
   const { provider, mode } = getConfig();
+  const modelName = MODEL_NAMES[mode].pro;
   // Gateway uses string model IDs, direct uses instantiated models
-  return mode === 'gateway' ? `google/${MODEL_NAMES.pro}` : provider(MODEL_NAMES.pro);
+  return mode === 'gateway' ? `google/${modelName}` : provider(modelName);
 }
 
 export function getFlashModel() {
   const { provider, mode } = getConfig();
-  return mode === 'gateway' ? `google/${MODEL_NAMES.flash}` : provider(MODEL_NAMES.flash);
+  const modelName = MODEL_NAMES[mode].flash;
+  return mode === 'gateway' ? `google/${modelName}` : provider(modelName);
 }
