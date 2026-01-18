@@ -2,6 +2,12 @@
 
 Last Updated: 2026-01-17
 
+## 2026-01-17: Environment-Based Model Provider Selection
+
+- **Centralized provider config**: New `model-provider.ts` handles Google AI vs Vercel Gateway selection based on env vars
+- **Graceful Braintrust fallback**: New `braintrust-wrapper.ts` warns and continues without tracing if `BRAINTRUST_API_KEY` or `PROJECT_NAME` missing
+- **Mode-aware model returns**: Gateway uses string IDs (`'google/gemini-3-pro-preview'`), direct uses instantiated models (`provider(...)`)
+
 ## 2026-01-17: Command ID Tracking for Shell Commands
 
 - **Fixed duplicate command bug**: Multiple/identical shell commands now properly track through queued→running→completed states via unique `commandId` (format: `cmd-{iteration}-{index}`)

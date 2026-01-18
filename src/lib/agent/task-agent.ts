@@ -1,14 +1,6 @@
-import * as ai from "ai";
-import { google, GoogleGenerativeAIProviderOptions} from '@ai-sdk/google';
-import { initLogger, wrapAISDK } from "braintrust";
-
-
-initLogger({
-  projectName: "skill-forge-agent",
-  apiKey: process.env.BRAINTRUST_API_KEY,
-});
-
-const { Experimental_Agent: Agent } = wrapAISDK(ai);
+import { GoogleGenerativeAIProviderOptions } from '@ai-sdk/google';
+import { getGoogleProvider, getProModel } from './model-provider';
+import { getAgent } from './braintrust-wrapper';
 
 const TASK_AGENT_INSTRUCTIONS = `You are a Task Execution Agent with access to a skill library.
 
@@ -112,8 +104,10 @@ Shell commands automatically run in the sandbox directory. Prefer pure bash when
 - **STOP after shell commands:** Your turn MUST end after <shell>...</shell>. Never add conclusions after.`;
 
 function createTaskAgent() {
+  const Agent = getAgent();
+  const google = getGoogleProvider();
   return new Agent({
-    model: 'google/gemini-3-pro-preview',
+    model: getProModel(),
     instructions: TASK_AGENT_INSTRUCTIONS,
     tools: {
       google_search: google.tools.googleSearch({}),

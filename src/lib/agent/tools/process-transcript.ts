@@ -1,15 +1,8 @@
-import * as ai from "ai";
 import { getConversation } from '@/lib/db';
-import { initLogger, wrapAISDK } from "braintrust";
 import { toTranscriptString, type DBMessage } from '@/lib/messages/transform';
 import { getSandboxExecutor } from '@/lib/sandbox/executor';
-
-initLogger({
-  projectName: "skill-forge-agent",
-  apiKey: process.env.BRAINTRUST_API_KEY,
-});
-
-const { generateText } = wrapAISDK(ai);
+import { getFlashModel } from '../model-provider';
+import { getGenerateText } from '../braintrust-wrapper';
 
 const TRANSCRIPT_PROCESSING_PROMPT = `You are a transcript processor. Analyze this task conversation and produce a structured summary optimized for skill codification.
 
@@ -96,8 +89,9 @@ export async function processTranscript(
   const prompt = TRANSCRIPT_PROCESSING_PROMPT.replace('{files-generated}', filesGenerated) + rawTranscript;
 
   // Process with Gemini Flash
+  const generateText = getGenerateText();
   const generated = await generateText({
-    model: 'google/gemini-3-flash',
+    model: getFlashModel(),
     prompt,
   });
 

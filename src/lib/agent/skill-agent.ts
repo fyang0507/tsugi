@@ -1,16 +1,9 @@
-import * as ai from "ai";
 import { z } from 'zod';
 import { GoogleGenerativeAIProviderOptions } from '@ai-sdk/google';
-import { initLogger, wrapAISDK } from "braintrust";
+import { getProModel } from './model-provider';
+import { getAgent } from './braintrust-wrapper';
 import { processTranscript } from './tools/process-transcript';
 import { getRequestContext } from './request-context';
-
-initLogger({
-  projectName: "skill-forge-agent",
-  apiKey: process.env.BRAINTRUST_API_KEY,
-});
-
-const { Experimental_Agent: Agent } = wrapAISDK(ai);
 
 const SKILL_AGENT_INSTRUCTIONS = `You are a Skill Codification Agent.
 
@@ -135,8 +128,9 @@ const processedTranscriptTool = {
  * The agent uses a tool that fetches the transcript from DB by conversation ID.
  */
 function createSkillAgent() {
+  const Agent = getAgent();
   return new Agent({
-    model: 'google/gemini-3-pro-preview',
+    model: getProModel(),
     instructions: SKILL_AGENT_INSTRUCTIONS,
     tools: {
       'get-processed-transcript': processedTranscriptTool,
