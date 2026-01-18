@@ -151,6 +151,12 @@ function AgentToolPart({ part }: { part: MessagePart }) {
   const dotColor = isTranscript ? 'bg-purple-500' : isShellCommand ? 'bg-green-500' : 'bg-blue-500';
   const loadingText = isTranscript ? 'processing...' : isShellCommand ? 'running...' : 'searching...';
 
+  // For shell commands, truncate long commands
+  const shellCommand = isShellCommand ? String(args?.command || '') : '';
+  const truncatedCommand = shellCommand.length > 60
+    ? shellCommand.slice(0, 60) + '...'
+    : shellCommand;
+
   return (
     <div className="my-2">
       <button
@@ -159,9 +165,19 @@ function AgentToolPart({ part }: { part: MessagePart }) {
       >
         <ChevronIcon expanded={expanded} />
         <div className={`w-2 h-2 rounded-full ${dotColor} ${isLoading ? 'animate-pulse' : ''}`} />
-        <span className="font-medium">{toolDisplayName}</span>
-        {toolDetail && (
-          <span className="text-zinc-500 truncate max-w-[250px]">{String(toolDetail)}</span>
+        {isShellCommand ? (
+          <>
+            <span className="font-mono text-zinc-400 truncate max-w-[400px]">
+              $ {truncatedCommand}
+            </span>
+          </>
+        ) : (
+          <>
+            <span className="font-medium">{toolDisplayName}</span>
+            {toolDetail && (
+              <span className="text-zinc-500 truncate max-w-[250px]">{String(toolDetail)}</span>
+            )}
+          </>
         )}
         {isLoading && <span className="text-zinc-500 italic">{loadingText}</span>}
         {!isLoading && sources.length > 0 && (

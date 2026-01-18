@@ -1,6 +1,13 @@
 # Changelog
 
-Last Updated: 2026-01-17
+Last Updated: 2026-01-18
+
+## 2026-01-18: Shell Execution Migration to AI SDK Tool
+
+- **execute_shell tool**: Converted shell execution from `<shell>` literal text pattern to proper AI SDK tool with zod schema validation
+- **Simplified agent loop**: Removed manual shell tag parsing and command execution - AI SDK now handles tool execution automatically
+- **RequestContext extension**: Added `env` field to pass environment variables to tool's execute function
+- **In-progress fixes**: Addressing AI SDK property naming (`input` vs `args`), removed provider-defined tools (google_search/url_context) due to compatibility issue with custom tools
 
 ## 2026-01-17: Environment-Based Model Provider Selection
 

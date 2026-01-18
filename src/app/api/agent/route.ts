@@ -151,6 +151,7 @@ export async function POST(req: Request) {
 
         // Use fullStream to capture both text and tool calls
         for await (const part of result.fullStream) {
+          console.log('[Stream Debug] Event type:', part.type, part.type === 'tool-call' ? part.toolName : '');
           switch (part.type) {
             case 'reasoning-delta':
               send({ type: 'reasoning', content: part.text });
@@ -161,10 +162,12 @@ export async function POST(req: Request) {
               break;
             case 'tool-call': {
               hasToolCalls = true;
+              // AI SDK uses 'input' instead of 'args' for tool arguments
+              const toolInput = (part as { input?: Record<string, unknown> }).input;
               // Track sandbox usage for execute_shell
               if (part.toolName === 'execute_shell') {
-                const args = part.args as { command?: string };
-                if (args.command && !args.command.startsWith('skill ')) {
+                const command = (toolInput as { command?: string })?.command;
+                if (command && !command.startsWith('skill ')) {
                   sandboxUsed = true;
                 }
                 // Emit sandbox_created on first shell use when no sandboxId was provided
@@ -179,19 +182,21 @@ export async function POST(req: Request) {
               send({
                 type: 'agent-tool-call',
                 toolName: part.toolName,
-                toolArgs: part.args as Record<string, unknown>,
+                toolArgs: toolInput,
                 toolCallId: part.toolCallId,
               });
               break;
             }
-            case 'tool-result':
+            case 'tool-result': {
               // Tool results (AI SDK handles execution automatically)
+              const resultStr = typeof part.result === 'string' ? part.result : JSON.stringify(part.result ?? '');
               send({
                 type: 'agent-tool-result',
                 toolCallId: part.toolCallId,
-                result: typeof part.result === 'string' ? part.result : JSON.stringify(part.result),
+                result: resultStr,
               });
               break;
+            }
             case 'source': {
               // Gemini grounding sources - citations for the response
               const sourcePart = part as { id?: string; url?: string; title?: string };
@@ -203,8 +208,13 @@ export async function POST(req: Request) {
               });
               break;
             }
+            default:
+              // Log unhandled event types for debugging
+              console.log('[Stream Debug] Unhandled event type:', (part as { type: string }).type);
           }
         }
+
+        console.log('[Stream Debug] Stream ended. hasToolCalls:', hasToolCalls, 'fullOutput length:', fullOutput.length);
 
         // Get usage metadata including cache stats
         const usage = await result.usage;

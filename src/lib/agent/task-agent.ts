@@ -1,4 +1,3 @@
-import { google, GoogleGenerativeAIProviderOptions } from '@ai-sdk/google';
 import { z } from 'zod';
 import { getProModel } from './model-provider';
 import { getAgent } from './braintrust-wrapper';
@@ -21,7 +20,7 @@ For procedural tasks, check if a relevant skill exists before execution.
 
 ## Phase 2: Plan, Execution & Verification
 - If a skill exists: Use it directly.
-- If no skill exists: Formulate a plan, then execute it. You are encouraged to use google search to ground your solution rather than relying on your internal knowledge. Briefly state your plan before moving to execution.
+- If no skill exists: Formulate a plan, then execute it. Briefly state your plan before moving to execution.
 - Verification: You must verify the result. If not working, keep trying with a different method.
 
 ## Phase 3: Task Completion
@@ -56,15 +55,18 @@ If you previously suggested skill codification but the user continued without co
 
 # Action Mechanisms
 
-## Tools (Auto-executed)
-You have three tools:
+## Tools
+You have one tool: **execute_shell** - Run shell commands in sandbox
 
-1. **google_search** - Search the web for information
-2. **url_context** - Analyze URLs including YouTube videos
-3. **execute_shell** - Run shell commands in sandbox
+### How to Use execute_shell
+Call the execute_shell tool with a "command" parameter containing the shell command to run.
 
-### Shell Execution
-Use execute_shell for file operations, API calls (curl), scripts (python3), and skill commands.
+Examples of tool calls:
+- To list files: call execute_shell with command="ls"
+- To make an API call: call execute_shell with command="curl -X POST -H 'Content-Type: application/json' -d '{\"content\":\"hello\"}' https://api.example.com"
+- To run a skill command: call execute_shell with command="skill list"
+
+**IMPORTANT:** Do NOT output shell commands as text. Always use the execute_shell tool.
 
 #### Skill System Commands
 Pass these to execute_shell:
@@ -128,7 +130,7 @@ Skill commands (prefix with "skill "):
 - skill suggest "desc" --name="name" - Suggest codifying a skill
 
 Results are returned as text.`,
-  parameters: z.object({
+  inputSchema: z.object({
     command: z.string().describe('The shell command to execute'),
   }),
   execute: async ({ command }: { command: string }) => {
@@ -143,17 +145,9 @@ function createTaskAgent() {
     model: getProModel(),
     instructions: TASK_AGENT_INSTRUCTIONS,
     tools: {
-      google_search: google.tools.googleSearch({}),
-      url_context: google.tools.urlContext({}),
+      // Note: google_search and url_context removed because Gemini doesn't support
+      // combining provider-defined tools with custom function tools
       execute_shell: executeShellTool,
-    },
-    providerOptions: {
-      google: {
-        thinkingConfig: {
-          thinkingLevel: 'low',
-          includeThoughts: true,
-        },
-      } satisfies GoogleGenerativeAIProviderOptions,
     },
     temperature: 0.05,
   });
