@@ -1,9 +1,7 @@
 import { taskAgent } from '@/lib/agent/task-agent';
 import { skillAgent } from '@/lib/agent/skill-agent';
-import { extractCommands, formatToolResults } from '@/lib/tools/command-parser';
-import { executeCommand } from '@/lib/tools/command-executor';
 import { toModelMessages, type APIMessage } from '@/lib/messages/transform';
-import { clearSandboxExecutor, getSandboxExecutor, SandboxTimeoutError } from '@/lib/sandbox/executor';
+import { clearSandboxExecutor, getSandboxExecutor } from '@/lib/sandbox/executor';
 import { mergePlaygroundEnv } from '@/lib/tools/playground-env';
 import { runWithRequestContext } from '@/lib/agent/request-context';
 
@@ -114,9 +112,9 @@ export async function POST(req: Request) {
 
   // Run the agent loop in the background
   (async () => {
-    // Wrap with request context so skill agent's tool can access conversationId/sandboxId
+    // Wrap with request context so skill agent's tool can access conversationId/sandboxId/env
     const currentSandboxId = requestSandboxId || executor.getSandboxId() || undefined;
-    await runWithRequestContext({ conversationId, sandboxId: currentSandboxId }, async () => {
+    await runWithRequestContext({ conversationId, sandboxId: currentSandboxId, env: mergedEnv }, async () => {
     try {
       // For codify-skill mode: build transcript from history, create agent with closure
       // The skill agent gets a blank context and calls get-processed-transcript tool
@@ -149,11 +147,7 @@ export async function POST(req: Request) {
         // Stream agent response with proper message array
         const result = await agent.stream({ messages: modelMessages });
         let fullOutput = '';
-
-        // Track shell commands detected during streaming for proper sequencing
-        let lastProcessedIndex = 0;
-        let commandIdCounter = 0;
-        const detectedCommands: Array<{ id: string; command: string }> = [];
+        let hasToolCalls = false;
 
         // Use fullStream to capture both text and tool calls
         for await (const part of result.fullStream) {
@@ -164,40 +158,38 @@ export async function POST(req: Request) {
             case 'text-delta':
               fullOutput += part.text;
               send({ type: 'text', content: part.text });
-
-              // Detect complete shell commands as they stream in
-              // This ensures tool-call events are sent in sequence with text
-              const shellRegex = /<shell>([\s\S]*?)<\/shell>/g;
-              let match;
-              while ((match = shellRegex.exec(fullOutput)) !== null) {
-                // Only process commands we haven't seen yet
-                if (match.index >= lastProcessedIndex) {
-                  const command = match[1].trim();
-                  if (command) {
-                    // Generate unique ID for each command (even duplicates)
-                    const commandId = `cmd-${iteration}-${commandIdCounter++}`;
-                    detectedCommands.push({ id: commandId, command });
-                    send({ type: 'tool-call', command, commandId });
+              break;
+            case 'tool-call': {
+              hasToolCalls = true;
+              // Track sandbox usage for execute_shell
+              if (part.toolName === 'execute_shell') {
+                const args = part.args as { command?: string };
+                if (args.command && !args.command.startsWith('skill ')) {
+                  sandboxUsed = true;
+                }
+                // Emit sandbox_created on first shell use when no sandboxId was provided
+                if (!sandboxIdEmitted && !requestSandboxId && sandboxUsed) {
+                  const currentSandboxId = executor.getSandboxId();
+                  if (currentSandboxId) {
+                    send({ type: 'sandbox_created', sandboxId: currentSandboxId });
+                    sandboxIdEmitted = true;
                   }
-                  lastProcessedIndex = match.index + match[0].length;
                 }
               }
-              break;
-            case 'tool-call':
-              // Native tool calls (if using non-Gemini providers)
               send({
                 type: 'agent-tool-call',
                 toolName: part.toolName,
-                toolArgs: part.input as Record<string, unknown>,
+                toolArgs: part.args as Record<string, unknown>,
                 toolCallId: part.toolCallId,
               });
               break;
+            }
             case 'tool-result':
-              // Native tool results
+              // Tool results (AI SDK handles execution automatically)
               send({
                 type: 'agent-tool-result',
                 toolCallId: part.toolCallId,
-                result: typeof part.output === 'string' ? part.output : JSON.stringify(part.output),
+                result: typeof part.result === 'string' ? part.result : JSON.stringify(part.result),
               });
               break;
             case 'source': {
@@ -246,93 +238,13 @@ export async function POST(req: Request) {
         // Store raw output verbatim as assistant message
         messages.push({ role: 'assistant', content: fullOutput });
 
-        // Use commands detected during streaming (already sent tool-call events)
-        // Fall back to extractCommands for any edge cases
-        const commands = detectedCommands.length > 0
-          ? detectedCommands
-          : extractCommands(fullOutput).map((cmd, idx) => ({
-              id: `cmd-${iteration}-${idx}`,
-              command: cmd,
-            }));
-
-        if (commands.length === 0) {
-          // No commands, we're done
+        // AI SDK handles tool execution automatically via execute_shell tool
+        // Loop continues if tools were called, ends otherwise
+        if (!hasToolCalls) {
+          // No tool calls, we're done
           send({ type: 'iteration-end', hasMoreCommands: false });
           break;
         }
-
-        // Execute commands and create separate tool message
-        // Note: tool-call events were already sent during streaming
-        const executions: Array<{ command: string; result: string }> = [];
-
-        let sandboxTimedOut = false;
-        for (const { id: commandId, command } of commands) {
-          // Check for abort before executing each command
-          if (aborted) {
-            break;
-          }
-
-          // Only send tool-call if we're using the fallback path
-          if (detectedCommands.length === 0) {
-            send({ type: 'tool-call', command, commandId });
-          }
-          // Signal that this command is now actually executing
-          send({ type: 'tool-start', command, commandId });
-
-          // Track that sandbox is being used (shell commands use sandbox)
-          if (!command.startsWith('skill ')) {
-            sandboxUsed = true;
-          }
-
-          try {
-            const result = await executeCommand(command, { env: mergedEnv });
-            executions.push({ command, result });
-            send({ type: 'tool-result', command, commandId, result });
-
-            // Emit sandbox_created on first shell command when no sandboxId was provided
-            if (!sandboxIdEmitted && !requestSandboxId && sandboxUsed) {
-              const currentSandboxId = executor.getSandboxId();
-              if (currentSandboxId) {
-                send({ type: 'sandbox_created', sandboxId: currentSandboxId });
-                sandboxIdEmitted = true;
-              }
-            }
-          } catch (error) {
-            if (error instanceof SandboxTimeoutError) {
-              send({
-                type: 'sandbox_timeout',
-                content: 'Sandbox timed out due to inactivity. All non-conversational data has been cleared.',
-              });
-              await clearSandboxExecutor();
-              sandboxUsed = false;
-              sandboxTimedOut = true;
-              break;
-            }
-            throw error;
-          }
-        }
-
-        // Exit agent loop if sandbox timed out
-        if (sandboxTimedOut) {
-          send({ type: 'done' });
-          break;
-        }
-
-        // Exit loop if aborted during command execution
-        if (aborted) {
-          send({ type: 'done' });
-          break;
-        }
-
-        // Store results as separate tool message
-        const toolMessage: APIMessage = {
-          role: 'tool',
-          content: formatToolResults(executions),
-        };
-        messages.push(toolMessage);
-
-        // Send tool output for KV cache support
-        send({ type: 'tool-output', toolOutput: toolMessage.content });
 
         send({ type: 'iteration-end', hasMoreCommands: true });
       }

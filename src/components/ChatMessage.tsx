@@ -128,25 +128,28 @@ function AgentToolPart({ part }: { part: MessagePart }) {
   const toolName = part.toolName || '';
   const isGoogleSearch = toolName.includes('google_search');
   const isTranscript = toolName.includes('get-processed-transcript');
+  const isShellCommand = toolName === 'execute_shell';
   const toolDisplayName = isGoogleSearch
     ? 'Google Search'
     : toolName.includes('url_context')
       ? 'URL Context'
       : isTranscript
         ? 'Task Summary'
-        : toolName || 'Tool';
+        : isShellCommand
+          ? 'Shell'
+          : toolName || 'Tool';
 
-  // Extract search query or URL from args
+  // Extract search query, URL, or command from args
   const args = part.toolArgs as Record<string, unknown> | undefined;
   const queries = args?.queries as string[] | undefined;
-  const toolDetail = queries?.[0] || args?.url || '';
+  const toolDetail = queries?.[0] || args?.url || args?.command || '';
 
   const isLoading = !part.content;
   const sources = part.sources || [];
 
-  // For transcript tool, use purple color; for search tools, use blue
-  const dotColor = isTranscript ? 'bg-purple-500' : 'bg-blue-500';
-  const loadingText = isTranscript ? 'processing...' : 'searching...';
+  // Color coding: purple for transcript, green for shell, blue for search tools
+  const dotColor = isTranscript ? 'bg-purple-500' : isShellCommand ? 'bg-green-500' : 'bg-blue-500';
+  const loadingText = isTranscript ? 'processing...' : isShellCommand ? 'running...' : 'searching...';
 
   return (
     <div className="my-2">

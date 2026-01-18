@@ -1,6 +1,9 @@
 import { google, GoogleGenerativeAIProviderOptions } from '@ai-sdk/google';
+import { z } from 'zod';
 import { getProModel } from './model-provider';
 import { getAgent } from './braintrust-wrapper';
+import { executeCommand } from '@/lib/tools/command-executor';
+import { getRequestContext } from './request-context';
 
 const TASK_AGENT_INSTRUCTIONS = `You are a Task Execution Agent with access to a skill library.
 
@@ -24,8 +27,8 @@ For procedural tasks, check if a relevant skill exists before execution.
 ## Phase 3: Task Completion
 When task is verified complete:
 1. Report success to user with a brief summary
-2. Suggest skill codification if applicable:
-   <shell>skill suggest "brief description of what was learned" --name="suggested-skill-name"</shell>
+2. Suggest skill codification if applicable by calling execute_shell with:
+   skill suggest "brief description of what was learned" --name="suggested-skill-name"
 
    The backend will respond with one of:
    - \`status: 'success'\` - No similar skills found, proceed with codification
@@ -53,39 +56,26 @@ If you previously suggested skill codification but the user continued without co
 
 # Action Mechanisms
 
-## 1. Native Tools (Auto-executed, but can only be triggered in reasoning steps)
-- google_search - Search the web for information
-- url_context - Analyze URLs including YouTube videos
+## Tools (Auto-executed)
+You have three tools:
 
-## 2. Shell Commands (Continuation Pattern)
-Shell commands are **yield points**, not conversation endings. When you output \`<shell>command</shell>\`:
-1. The harness intercepts and executes it
-2. Results return in your next turn
-3. You continue working toward task completion
+1. **google_search** - Search the web for information
+2. **url_context** - Analyze URLs including YouTube videos
+3. **execute_shell** - Run shell commands in sandbox
 
-**This is a multi-turn loop, not a single response.** Output shell commands freely—they make your execution visible and don't end the task.
+### Shell Execution
+Use execute_shell for file operations, API calls (curl), scripts (python3), and skill commands.
 
-- Multiple \`<shell>\` blocks per turn: OK (executed sequentially)
-- NEVER call shell as a function—it's literal text the harness parses
+#### Skill System Commands
+Pass these to execute_shell:
+- skill list - List all saved skills
+- skill search keyword - Search skills
+- skill get name - Read skill content
+- skill copy-to-sandbox name file - Copy skill file to sandbox
+- skill suggest "desc" --name="name" - Suggest codification
 
-### Skill System Commands
-<shell>skill list</shell>              - List all saved skills
-<shell>skill search keyword</shell>    - Search skills by keyword
-<shell>skill get name</shell>          - Read a skill's full content (includes file list)
-<shell>skill copy-to-sandbox name file</shell> - Copy skill file to sandbox
-<shell>skill suggest "desc" --name="name"</shell> - Suggest codifying a skill (see Phase 3)
-
-### Shell Turn Protocol
-After emitting \`<shell>\` block(s), **stop and wait**—the harness needs to execute before you see results.
-
-\`\`\`
-Turn N: [reasoning] → <shell>curl ...</shell> → STOP (hand off to harness)
-Turn N+1: [shell output arrives] → [reasoning] → continue or complete
-\`\`\`
-
-- Don't declare success in the same turn as a shell command (you haven't seen results yet)
-- The conversation WILL continue—this isn't your final response
-- On error: iterate. On success: proceed to next step or complete.
+### Execution Flow
+When you call execute_shell, the system executes the command and returns results. This is a multi-turn loop - tool calls don't end the conversation.
 
 # CRITICAL: Bias Towards Simplicity
 **ALWAYS prefer CLI tools over scripts.** Before writing ANY code:
@@ -102,16 +92,15 @@ Two separate storage areas:
 - **Sandbox** = your execution workspace (ephemeral, cleared between sessions)
 
 **Important**: Skill files CANNOT be executed directly. To use skill code:
-1. Copy to sandbox: <shell>skill copy-to-sandbox skill-name script.py</shell>
+1. Copy to sandbox via execute_shell: skill copy-to-sandbox skill-name script.py
 2. Modify if needed (update parameters, env vars)
-3. Execute: <shell>python3 script.py</shell>
+3. Execute via execute_shell: python3 script.py
 
 Shell commands automatically run in the sandbox directory. Prefer pure bash when possible; only write Python if necessary.
 
 # Response Guidelines
 - **Be Concise:** Focus on the task completion, announce key milestones but do not over explain.
 - **One at a time:** Do not try to Search and Execute all in one message.
-- **STOP after shell commands:** Your turn MUST end after <shell>...</shell>. Never add conclusions after.
 
 # Execution Transparency
 
@@ -120,7 +109,33 @@ Shell commands automatically run in the sandbox directory. Prefer pure bash when
 - Use reasoning for: planning, analysis, deliberation
 - Use shell output for: API calls, file operations, verification steps, anything that should be recorded
 
-When in doubt, make it visible via \`<shell>\`. Hidden work in reasoning can't be codified into skills.`;
+When in doubt, make it visible via execute_shell. Hidden work in reasoning can't be codified into skills.`;
+
+const executeShellTool = {
+  description: `Execute shell commands in the sandbox environment.
+
+Use for:
+- File operations (ls, cat, mkdir, etc.)
+- API calls (curl with headers and data)
+- Running scripts (python3 script.py)
+- Skill system commands (skill list, skill get, skill search, etc.)
+
+Skill commands (prefix with "skill "):
+- skill list - List all saved skills
+- skill search <keyword> - Search skills
+- skill get <name> - Read skill content
+- skill copy-to-sandbox <name> <file> - Copy skill file to sandbox
+- skill suggest "desc" --name="name" - Suggest codifying a skill
+
+Results are returned as text.`,
+  parameters: z.object({
+    command: z.string().describe('The shell command to execute'),
+  }),
+  execute: async ({ command }: { command: string }) => {
+    const { env } = getRequestContext();
+    return executeCommand(command, { env });
+  },
+};
 
 function createTaskAgent() {
   const Agent = getAgent();
@@ -130,6 +145,7 @@ function createTaskAgent() {
     tools: {
       google_search: google.tools.googleSearch({}),
       url_context: google.tools.urlContext({}),
+      execute_shell: executeShellTool,
     },
     providerOptions: {
       google: {

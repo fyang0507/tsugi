@@ -3,6 +3,7 @@ import { AsyncLocalStorage } from 'async_hooks';
 interface RequestContext {
   conversationId?: string;
   sandboxId?: string;
+  env?: Record<string, string>;
 }
 
 const asyncLocalStorage = new AsyncLocalStorage<RequestContext>();
