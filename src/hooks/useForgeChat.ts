@@ -7,6 +7,7 @@ export interface MessagePart {
   type: 'text' | 'reasoning' | 'tool' | 'agent-tool' | 'sources';
   content: string;
   command?: string; // For shell tool parts
+  commandId?: string; // Unique identifier for command tracking
   toolStatus?: 'queued' | 'running' | 'completed'; // For shell tool parts
   toolName?: string; // For agent tool parts (google_search, url_context)
   toolArgs?: Record<string, unknown>;
@@ -53,6 +54,7 @@ interface SSEEvent {
   type: 'text' | 'reasoning' | 'tool-call' | 'tool-start' | 'tool-result' | 'agent-tool-call' | 'agent-tool-result' | 'source' | 'iteration-end' | 'done' | 'error' | 'usage' | 'raw-content' | 'tool-output' | 'sandbox_timeout' | 'sandbox_created';
   content?: string;
   command?: string;
+  commandId?: string;  // Unique identifier for command tracking
   result?: string;
   hasMoreCommands?: boolean;
   // For agent tool calls
@@ -301,15 +303,22 @@ export function useForgeChat(options?: UseForgeChatOptions) {
                 }
                 currentTextContent = '';
                 // Add tool part (queued status - not yet executing)
-                parts.push({ type: 'tool', command: event.command || '', content: '', toolStatus: 'queued' });
+                parts.push({
+                  type: 'tool',
+                  command: event.command || '',
+                  commandId: event.commandId,
+                  content: '',
+                  toolStatus: 'queued',
+                });
                 updateAssistantMessage();
                 break;
               }
 
               case 'tool-start': {
                 // Mark the tool as actually running (not just queued)
+                // Match by commandId for proper tracking of multiple/duplicate commands
                 const startingPart = parts.find(
-                  (p) => p.type === 'tool' && p.command === event.command && p.toolStatus === 'queued'
+                  (p) => p.type === 'tool' && p.commandId === event.commandId
                 );
                 if (startingPart) {
                   startingPart.toolStatus = 'running';
@@ -319,9 +328,9 @@ export function useForgeChat(options?: UseForgeChatOptions) {
               }
 
               case 'tool-result': {
-                // Find the matching tool part by command (may not be the last one)
+                // Find the matching tool part by commandId for proper tracking
                 const matchingPart = parts.find(
-                  (p) => p.type === 'tool' && p.command === event.command && p.toolStatus !== 'completed'
+                  (p) => p.type === 'tool' && p.commandId === event.commandId
                 );
                 if (matchingPart) {
                   matchingPart.content = event.result || '';

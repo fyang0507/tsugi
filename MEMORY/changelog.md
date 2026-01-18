@@ -2,6 +2,13 @@
 
 Last Updated: 2026-01-17
 
+## 2026-01-17: Command ID Tracking for Shell Commands
+
+- **Fixed duplicate command bug**: Multiple/identical shell commands now properly track through queued→running→completed states via unique `commandId` (format: `cmd-{iteration}-{index}`)
+- **Backend changes**: `route.ts` detects commands during streaming and assigns IDs; execution loop includes IDs in all SSE events
+- **Frontend changes**: `useForgeChat.ts` matches tool-start/tool-result events by commandId instead of command string
+- **Test coverage**: Added `command-parser.test.ts` (16 tests) and `command-id-tracking.test.ts` (11 tests) in `src/lib/tools/__tests__/`
+
 ## 2026-01-17: Skill Suggest Unification + Test Fixes
 
 - **Unified `skill suggest` syntax**: Changed from `--update="name"` to `--name="name" [--force]` with backend fuzzy search detection

@@ -16,6 +16,7 @@ interface SSEEvent {
   sandboxId?: string;
   content?: string;
   command?: string;
+  commandId?: string;  // Unique identifier for command tracking
   result?: string;
   hasMoreCommands?: boolean;
   // For agent tool calls (google_search, url_context)
@@ -151,7 +152,8 @@ export async function POST(req: Request) {
 
         // Track shell commands detected during streaming for proper sequencing
         let lastProcessedIndex = 0;
-        const detectedCommands: string[] = [];
+        let commandIdCounter = 0;
+        const detectedCommands: Array<{ id: string; command: string }> = [];
 
         // Use fullStream to capture both text and tool calls
         for await (const part of result.fullStream) {
@@ -171,9 +173,11 @@ export async function POST(req: Request) {
                 // Only process commands we haven't seen yet
                 if (match.index >= lastProcessedIndex) {
                   const command = match[1].trim();
-                  if (command && !detectedCommands.includes(command)) {
-                    detectedCommands.push(command);
-                    send({ type: 'tool-call', command });
+                  if (command) {
+                    // Generate unique ID for each command (even duplicates)
+                    const commandId = `cmd-${iteration}-${commandIdCounter++}`;
+                    detectedCommands.push({ id: commandId, command });
+                    send({ type: 'tool-call', command, commandId });
                   }
                   lastProcessedIndex = match.index + match[0].length;
                 }
@@ -246,7 +250,10 @@ export async function POST(req: Request) {
         // Fall back to extractCommands for any edge cases
         const commands = detectedCommands.length > 0
           ? detectedCommands
-          : extractCommands(fullOutput);
+          : extractCommands(fullOutput).map((cmd, idx) => ({
+              id: `cmd-${iteration}-${idx}`,
+              command: cmd,
+            }));
 
         if (commands.length === 0) {
           // No commands, we're done
@@ -259,7 +266,7 @@ export async function POST(req: Request) {
         const executions: Array<{ command: string; result: string }> = [];
 
         let sandboxTimedOut = false;
-        for (const command of commands) {
+        for (const { id: commandId, command } of commands) {
           // Check for abort before executing each command
           if (aborted) {
             break;
@@ -267,10 +274,10 @@ export async function POST(req: Request) {
 
           // Only send tool-call if we're using the fallback path
           if (detectedCommands.length === 0) {
-            send({ type: 'tool-call', command });
+            send({ type: 'tool-call', command, commandId });
           }
           // Signal that this command is now actually executing
-          send({ type: 'tool-start', command });
+          send({ type: 'tool-start', command, commandId });
 
           // Track that sandbox is being used (shell commands use sandbox)
           if (!command.startsWith('skill ')) {
@@ -280,7 +287,7 @@ export async function POST(req: Request) {
           try {
             const result = await executeCommand(command, { env: mergedEnv });
             executions.push({ command, result });
-            send({ type: 'tool-result', command, result });
+            send({ type: 'tool-result', command, commandId, result });
 
             // Emit sandbox_created on first shell command when no sandboxId was provided
             if (!sandboxIdEmitted && !requestSandboxId && sandboxUsed) {
