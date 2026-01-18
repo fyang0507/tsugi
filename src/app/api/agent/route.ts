@@ -189,7 +189,9 @@ export async function POST(req: Request) {
             }
             case 'tool-result': {
               // Tool results (AI SDK handles execution automatically)
-              const resultStr = typeof part.result === 'string' ? part.result : JSON.stringify(part.result ?? '');
+              // AI SDK v6 uses 'output' instead of 'result'
+              const output = (part as { output?: unknown }).output;
+              const resultStr = typeof output === 'string' ? output : JSON.stringify(output ?? '');
               send({
                 type: 'agent-tool-result',
                 toolCallId: part.toolCallId,

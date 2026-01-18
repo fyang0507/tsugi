@@ -24,7 +24,14 @@ interface ChatMessageProps {
 // Parse skill suggestion from tool result (skill suggest command)
 function parseToolSkillSuggestion(parts: MessagePart[]): SkillSuggestion | null {
   for (const part of parts) {
-    if (part.type === 'tool' && part.command?.startsWith('skill suggest')) {
+    // Check legacy 'tool' type parts
+    const isLegacySkillSuggest = part.type === 'tool' && part.command?.startsWith('skill suggest');
+    // Check new 'agent-tool' type parts (AI SDK execute_shell tool)
+    const isAgentSkillSuggest = part.type === 'agent-tool' &&
+      part.toolName === 'execute_shell' &&
+      (part.toolArgs?.command as string)?.startsWith('skill suggest');
+
+    if (isLegacySkillSuggest || isAgentSkillSuggest) {
       try {
         const result = JSON.parse(part.content);
         if (result.type === 'skill-suggestion') {
