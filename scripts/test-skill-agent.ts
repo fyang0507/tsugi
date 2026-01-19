@@ -46,8 +46,8 @@ async function main() {
             break;
           case 'tool-call':
             console.log(`\n[Tool: ${part.toolName}]`);
-            if (part.args) {
-              const argsStr = JSON.stringify(part.args, null, 2);
+            if (part.input) {
+              const argsStr = JSON.stringify(part.input, null, 2);
               console.log(`[Args: ${argsStr.slice(0, 300)}${argsStr.length > 300 ? '...' : ''}]`);
             }
             break;
