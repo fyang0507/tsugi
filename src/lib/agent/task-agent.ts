@@ -1,9 +1,7 @@
-import { z } from 'zod';
-import { google } from '@ai-sdk/google';
+import { google, GoogleGenerativeAIProviderOptions } from '@ai-sdk/google';
 import { getFlashModel } from './model-provider';
 import { getAgent } from './braintrust-wrapper';
-import { executeCommand } from '@/lib/tools/command-executor';
-import { getRequestContext } from './request-context';
+import { executeShellTool } from './tools/execute-shell';
 
 const TASK_AGENT_INSTRUCTIONS = `You are a Task Execution Agent with access to a skill library.
 
@@ -112,17 +110,6 @@ Shell commands automatically run in the sandbox directory. Prefer pure bash when
 
 When in doubt, make it visible via execute_shell. Hidden work in reasoning can't be codified into skills.`;
 
-const executeShellTool = {
-  description: `Execute shell commands in the sandbox environment. Results are returned as text.`,
-  inputSchema: z.object({
-    command: z.string().describe('The shell command to execute'),
-  }),
-  execute: async ({ command }: { command: string }) => {
-    const { env } = getRequestContext();
-    return executeCommand(command, { env });
-  },
-};
-
 function createTaskAgent() {
   const Agent = getAgent();
   return new Agent({
@@ -132,6 +119,14 @@ function createTaskAgent() {
       google_search: google.tools.googleSearch({}),
       url_context: google.tools.urlContext({}),
       execute_shell: executeShellTool,
+    },
+    providerOptions: {
+      google: {
+        thinkingConfig: {
+          thinkingLevel: 'low',
+          includeThoughts: true,
+        },
+      } satisfies GoogleGenerativeAIProviderOptions,
     },
     temperature: 0.05,
   });
