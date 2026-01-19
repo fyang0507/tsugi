@@ -16,10 +16,11 @@ Trace the actual execution path:
 - Enumerate steps in order of execution
 - Mark detours, failed attempts, and corrections with [DETOUR] or [ERROR]
 - Note decision points and why certain paths were chosen
-- Include shell commands executed (don't recite commands, describe their purposes)
+- Include shell commands executed (unless it's a generation command in which case the file can be cross referenced in Section 4)
+- Note the specific tools/languages used (e.g., "used curl" vs "used Python requests")
 
 ## 3. Gotchas, Errors & Edge Cases
-Document non-obvious issues:
+Document non-obvious issues encountered in the process, leave blank if none:
 - Errors encountered and their root causes
 - API quirks, format issues, validation failures
 - Environment-specific issues (paths, permissions, dependencies)
@@ -35,12 +36,15 @@ For each file above (if any), provide:
 - Dependencies on other files
 - Whether reusable or task-specific
 
-## 5. Reusable Patterns & Best Practices
-Extract the "shortest path" for future similar tasks:
-- What would the optimal approach be, knowing what we know now?
-- Reusable code snippets or command patterns (reference files by name, don't inline code)
-- Recommended tools/libraries for this task type
-- What to avoid (anti-patterns discovered)
+## 5. Optimal Procedure (Based on Actual Execution)
+Extract the "shortest path" using ONLY tools and methods actually used:
+- What is the minimal sequence of steps to succeed, knowing what we know now?
+- Reference actual commands executed and files created (by name, don't inline code)
+- Note which steps were essential vs which were detours/debugging
+- What to avoid (anti-patterns discovered during execution)
+
+IMPORTANT: Only reference tools, commands, and code that were ACTUALLY USED in the transcript.
+Do NOT suggest alternative implementations, different languages, or tools that weren't used.
 
 ---
 Transcript:

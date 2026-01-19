@@ -1,3 +1,8 @@
+/**
+ * Test script to verify skill agent behavior
+ *
+ * Usage: npx tsx scripts/test-skill-agent.ts <conversationId>
+ */
 import 'dotenv/config';
 import { createClient } from '@libsql/client';
 

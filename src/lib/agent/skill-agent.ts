@@ -66,6 +66,8 @@ Then merge the new learnings with existing content. Preserve what still works, f
 - User-specific preferences or constraints discovered
 - Workarounds for common errors or edge cases
 
+**Key principle:** The value is in capturing the ACTUAL working procedure from the execution, not in inventing a "better" approach. Document what was done, optimized to the shortest successful path.
+
 ## Skip If
 - Single-step operations
 - Generic model capabilities (summarization, translation)
@@ -94,18 +96,15 @@ When codifying a skill that involved code execution (scripts in sandbox):
 
 1. List sandbox files: execute_shell with command="ls"
 2. Read the code: execute_shell with command="cat script.py"
-3. **Generalize the code** before saving:
+3. **Generalize the code** while preserving the same approach:
    - Replace hardcoded values (URLs, IDs, tokens) with environment variables or parameters
    - Add a docstring explaining what the script does and required parameters
    - Remove task-specific data, keep the reusable procedure
+   - Keep the SAME language, tools, and methods used in the original
 4. Include the generalized code in your skill markdown using a code block
 5. Document: required env vars, parameters, example usage
 
-Example generalization:
-- Original: \`webhook_url = "https://discord.com/api/webhooks/123/abc"\`
-- Generalized: \`webhook_url = os.environ.get("DISCORD_WEBHOOK_URL")\`
-
-The goal is that future runs can adapt the code for different tasks, not replay the exact same operation.
+The goal is that future runs can adapt the code for different tasks using the SAME approach, not a different one.
 
 # Completion
 After tool execution completes:

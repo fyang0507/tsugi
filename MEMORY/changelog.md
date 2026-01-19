@@ -2,6 +2,12 @@
 
 Last Updated: 2026-01-19
 
+## 2026-01-19: Transcript Fidelity Improvements
+
+- **Full execution history**: `toTranscriptString()` now processes `parts` array (reasoning, agent-tool, text) instead of lossy `iterations`, giving skill agent complete visibility into tool calls and reasoning
+- **Actual vs invented**: Updated process-transcript prompt to extract "shortest path using ONLY tools/methods actually used" - prevents suggesting alternative implementations
+- **Skill agent guidance**: Added principle that value is in capturing the ACTUAL working procedure, not inventing a "better" approach
+
 ## 2026-01-19: Skill Agent Shell Tool Migration
 
 - **Skill agent migrated**: Converted from `<shell>` literal text pattern to proper `execute_shell` tool, matching task-agent architecture

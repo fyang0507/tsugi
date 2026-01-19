@@ -29,6 +29,12 @@ export interface AgentIteration {
   toolOutput?: string;
 }
 
+/** Message part types stored in the database */
+export type MessagePart =
+  | { type: 'text'; content: string }
+  | { type: 'reasoning'; content: string }
+  | { type: 'agent-tool'; toolName: string; toolArgs: Record<string, unknown>; content: string };
+
 /** Backend API route internal format */
 export interface APIMessage {
   role: 'user' | 'assistant' | 'tool';
@@ -40,6 +46,7 @@ export interface DBMessage {
   role: 'user' | 'assistant';
   rawContent: string;
   iterations?: AgentIteration[];
+  parts?: MessagePart[];
 }
 
 // ============================================================================
@@ -121,22 +128,44 @@ export function uiToApiMessages(messages: UIMessage[]): Array<{ role: string; co
 /**
  * Convert DB messages to a human-readable transcript string.
  * Used by the skill agent for transcript processing.
+ *
+ * Processes the `parts` array which contains the full execution history:
+ * - reasoning: AI reasoning/thinking
+ * - agent-tool: Tool calls with name, args, and output
+ * - text: Plain text responses
  */
 export function toTranscriptString(messages: DBMessage[]): string {
-  const parts: string[] = [];
+  const output: string[] = [];
 
   for (const m of messages) {
     if (m.role === 'user') {
-      parts.push(`[user] ${m.rawContent}`);
+      output.push(`[user] ${m.rawContent}`);
+    } else if (m.parts && m.parts.length > 0) {
+      // Process parts array for full execution history
+      for (const part of m.parts) {
+        if (part.type === 'reasoning') {
+          output.push(`[reasoning] ${part.content}`);
+        } else if (part.type === 'agent-tool') {
+          // Format tool call with name and args
+          const argsStr = JSON.stringify(part.toolArgs);
+          output.push(`[tool-call] ${part.toolName}: ${argsStr}`);
+          if (part.content) {
+            output.push(`[tool-output] ${part.content}`);
+          }
+        } else if (part.type === 'text') {
+          output.push(`[assistant] ${part.content}`);
+        }
+      }
     } else if (m.iterations && m.iterations.length > 0) {
+      // Fallback to iterations for legacy messages without parts
       for (const iter of m.iterations) {
-        parts.push(`[assistant] ${iter.rawContent}`);
+        output.push(`[assistant] ${iter.rawContent}`);
         if (iter.toolOutput) {
-          parts.push(`[tool] ${iter.toolOutput}`);
+          output.push(`[tool] ${iter.toolOutput}`);
         }
       }
     }
   }
 
-  return parts.join('\n\n');
+  return output.join('\n\n');
 }
