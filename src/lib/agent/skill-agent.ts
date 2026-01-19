@@ -1,6 +1,7 @@
 import { z } from 'zod';
+import { StopCondition, stepCountIs } from 'ai';
 import { GoogleGenerativeAIProviderOptions } from '@ai-sdk/google';
-import { getProModel } from './model-provider';
+import { getFlashModel } from './model-provider';
 import { getAgent } from './braintrust-wrapper';
 import { processTranscript } from './tools/process-transcript';
 import { getRequestContext } from './request-context';
@@ -135,6 +136,17 @@ const processedTranscriptTool = {
   },
 };
 
+// Tools object for type inference in stopWhen condition
+const skillAgentTools = {
+  get_processed_transcript: processedTranscriptTool,
+  execute_shell: executeShellTool,
+};
+
+// Stop when agent outputs "COMPLETE" signal
+const hasCompleteSignal: StopCondition<typeof skillAgentTools> = ({ steps }) => {
+  return steps.some(step => step.text?.trim().endsWith('COMPLETE')) ?? false;
+};
+
 /**
  * Creates the Skill Agent singleton.
  * The agent uses a tool that fetches the transcript from DB by conversation ID.
@@ -142,12 +154,10 @@ const processedTranscriptTool = {
 function createSkillAgent() {
   const Agent = getAgent();
   return new Agent({
-    model: getProModel(),
+    model: getFlashModel(),
     instructions: SKILL_AGENT_INSTRUCTIONS,
-    tools: {
-      'get-processed-transcript': processedTranscriptTool,
-      execute_shell: executeShellTool,
-    },
+    tools: skillAgentTools,
+    stopWhen: [stepCountIs(10), hasCompleteSignal],
     providerOptions: {
       google: {
         thinkingConfig: {

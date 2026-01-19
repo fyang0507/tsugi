@@ -5,8 +5,6 @@ import { clearSandboxExecutor, getSandboxExecutor } from '@/lib/sandbox/executor
 import { mergePlaygroundEnv } from '@/lib/tools/playground-env';
 import { runWithRequestContext } from '@/lib/agent/request-context';
 
-const MAX_ITERATIONS = 10;
-
 type AgentMode = 'task' | 'codify-skill';
 
 interface SSEEvent {
@@ -129,137 +127,110 @@ export async function POST(req: Request) {
         agent = taskAgent;
         messages = [...initialMessages];
       }
-      let iteration = 0;
 
-      while (iteration < MAX_ITERATIONS) {
-        // Check for abort before starting new iteration
+      const startTime = Date.now();
+
+      // Convert to ModelMessage array (preserves structure for KV cache)
+      const modelMessages = toModelMessages(messages);
+
+      // Stream agent response - agent handles multi-step via stopWhen condition
+      const result = await agent.stream({ messages: modelMessages });
+
+      // Use fullStream to capture both text and tool calls
+      for await (const part of result.fullStream) {
+        // Check for abort
         if (aborted) {
-          send({ type: 'done' });
           break;
         }
 
-        iteration++;
-        const iterationStartTime = Date.now();
-
-        // Convert to ModelMessage array (preserves structure for KV cache)
-        const modelMessages = toModelMessages(messages);
-
-        // Stream agent response with proper message array
-        const result = await agent.stream({ messages: modelMessages });
-        let fullOutput = '';
-        let hasToolCalls = false;
-
-        // Use fullStream to capture both text and tool calls
-        for await (const part of result.fullStream) {
-          console.log('[Stream Debug] Event type:', part.type, part.type === 'tool-call' ? part.toolName : '');
-          switch (part.type) {
-            case 'reasoning-delta':
-              send({ type: 'reasoning', content: part.text });
-              break;
-            case 'text-delta':
-              fullOutput += part.text;
-              send({ type: 'text', content: part.text });
-              break;
-            case 'tool-call': {
-              hasToolCalls = true;
-              // AI SDK uses 'input' instead of 'args' for tool arguments
-              const toolInput = (part as { input?: Record<string, unknown> }).input;
-              // Track sandbox usage for execute_shell
-              if (part.toolName === 'execute_shell') {
-                const command = (toolInput as { command?: string })?.command;
-                if (command && !command.startsWith('skill ')) {
-                  sandboxUsed = true;
-                }
-                // Emit sandbox_created on first shell use when no sandboxId was provided
-                if (!sandboxIdEmitted && !requestSandboxId && sandboxUsed) {
-                  const currentSandboxId = executor.getSandboxId();
-                  if (currentSandboxId) {
-                    send({ type: 'sandbox_created', sandboxId: currentSandboxId });
-                    sandboxIdEmitted = true;
-                  }
+        console.log('[Stream Debug] Event type:', part.type, part.type === 'tool-call' ? part.toolName : '');
+        switch (part.type) {
+          case 'reasoning-delta':
+            send({ type: 'reasoning', content: part.text });
+            break;
+          case 'text-delta':
+            send({ type: 'text', content: part.text });
+            break;
+          case 'tool-call': {
+            // AI SDK uses 'input' instead of 'args' for tool arguments
+            const toolInput = (part as { input?: Record<string, unknown> }).input;
+            // Track sandbox usage for execute_shell
+            if (part.toolName === 'execute_shell') {
+              const command = (toolInput as { command?: string })?.command;
+              if (command && !command.startsWith('skill ')) {
+                sandboxUsed = true;
+              }
+              // Emit sandbox_created on first shell use when no sandboxId was provided
+              if (!sandboxIdEmitted && !requestSandboxId && sandboxUsed) {
+                const currentSandboxId = executor.getSandboxId();
+                if (currentSandboxId) {
+                  send({ type: 'sandbox_created', sandboxId: currentSandboxId });
+                  sandboxIdEmitted = true;
                 }
               }
-              send({
-                type: 'agent-tool-call',
-                toolName: part.toolName,
-                toolArgs: toolInput,
-                toolCallId: part.toolCallId,
-              });
-              break;
             }
-            case 'tool-result': {
-              // Tool results (AI SDK handles execution automatically)
-              // AI SDK v6 uses 'output' instead of 'result'
-              const output = (part as { output?: unknown }).output;
-              const resultStr = typeof output === 'string' ? output : JSON.stringify(output ?? '');
-              send({
-                type: 'agent-tool-result',
-                toolCallId: part.toolCallId,
-                result: resultStr,
-              });
-              break;
-            }
-            case 'source': {
-              // Gemini grounding sources - citations for the response
-              const sourcePart = part as { id?: string; url?: string; title?: string };
-              send({
-                type: 'source',
-                sourceId: sourcePart.id,
-                sourceUrl: sourcePart.url,
-                sourceTitle: sourcePart.title,
-              });
-              break;
-            }
-            default:
-              // Log unhandled event types for debugging
-              console.log('[Stream Debug] Unhandled event type:', (part as { type: string }).type);
+            send({
+              type: 'agent-tool-call',
+              toolName: part.toolName,
+              toolArgs: toolInput,
+              toolCallId: part.toolCallId,
+            });
+            break;
           }
+          case 'tool-result': {
+            // Tool results (AI SDK handles execution automatically)
+            // AI SDK v6 uses 'output' instead of 'result'
+            const output = (part as { output?: unknown }).output;
+            const resultStr = typeof output === 'string' ? output : JSON.stringify(output ?? '');
+            send({
+              type: 'agent-tool-result',
+              toolCallId: part.toolCallId,
+              result: resultStr,
+            });
+            break;
+          }
+          case 'source': {
+            // Gemini grounding sources - citations for the response
+            const sourcePart = part as { id?: string; url?: string; title?: string };
+            send({
+              type: 'source',
+              sourceId: sourcePart.id,
+              sourceUrl: sourcePart.url,
+              sourceTitle: sourcePart.title,
+            });
+            break;
+          }
+          default:
+            // Log unhandled event types for debugging
+            console.log('[Stream Debug] Unhandled event type:', (part as { type: string }).type);
         }
-
-        console.log('[Stream Debug] Stream ended. hasToolCalls:', hasToolCalls, 'fullOutput length:', fullOutput.length);
-
-        // Get usage metadata including cache stats
-        const usage = await result.usage;
-        const cacheReadTokens = usage?.inputTokenDetails?.cacheReadTokens;
-        const reasoningTokens = (usage?.outputTokenDetails as { reasoningTokens?: number })?.reasoningTokens;
-        const executionTimeMs = Date.now() - iterationStartTime;
-
-        console.log('[Cache Debug] Iteration', iteration, {
-          inputTokens: usage?.inputTokens,
-          outputTokens: usage?.outputTokens,
-          cacheReadTokens,
-          reasoningTokens,
-          executionTimeMs,
-          inputTokenDetails: JSON.stringify(usage?.inputTokenDetails),
-        });
-
-        send({
-          type: 'usage',
-          usage: {
-            promptTokens: usage?.inputTokens,
-            completionTokens: usage?.outputTokens,
-            cachedContentTokenCount: cacheReadTokens,
-            reasoningTokens,
-          },
-          executionTimeMs,
-        });
-
-        // Send raw content for KV cache support
-        send({ type: 'raw-content', rawContent: fullOutput });
-
-        // Store raw output verbatim as assistant message
-        messages.push({ role: 'assistant', content: fullOutput });
-
-        // AI SDK handles tool execution automatically via execute_shell tool
-        // Loop continues if tools were called, ends otherwise
-        if (!hasToolCalls) {
-          // No tool calls, we're done
-          send({ type: 'iteration-end', hasMoreCommands: false });
-          break;
-        }
-
-        send({ type: 'iteration-end', hasMoreCommands: true });
       }
+
+      // Get usage metadata including cache stats
+      const usage = await result.usage;
+      const cacheReadTokens = usage?.inputTokenDetails?.cacheReadTokens;
+      const reasoningTokens = (usage?.outputTokenDetails as { reasoningTokens?: number })?.reasoningTokens;
+      const executionTimeMs = Date.now() - startTime;
+
+      console.log('[Cache Debug]', {
+        inputTokens: usage?.inputTokens,
+        outputTokens: usage?.outputTokens,
+        cacheReadTokens,
+        reasoningTokens,
+        executionTimeMs,
+        inputTokenDetails: JSON.stringify(usage?.inputTokenDetails),
+      });
+
+      send({
+        type: 'usage',
+        usage: {
+          promptTokens: usage?.inputTokens,
+          completionTokens: usage?.outputTokens,
+          cachedContentTokenCount: cacheReadTokens,
+          reasoningTokens,
+        },
+        executionTimeMs,
+      });
 
       send({ type: 'done' });
     } catch (error) {

@@ -1,4 +1,5 @@
 import { google, GoogleGenerativeAIProviderOptions } from '@ai-sdk/google';
+import { StopCondition, stepCountIs } from 'ai';
 import { getFlashModel } from './model-provider';
 import { getAgent } from './braintrust-wrapper';
 import { executeShellTool } from './tools/execute-shell';
@@ -114,16 +115,25 @@ Shell commands automatically run in the sandbox directory. Prefer pure bash when
 
 When in doubt, make it visible via execute_shell. Hidden work in reasoning can't be codified into skills.`;
 
+// Tools object for type inference in stopWhen condition
+const taskAgentTools = {
+  google_search: google.tools.googleSearch({}),
+  url_context: google.tools.urlContext({}),
+  execute_shell: executeShellTool,
+};
+
+// Stop when agent outputs "COMPLETE" signal
+const hasCompleteSignal: StopCondition<typeof taskAgentTools> = ({ steps }) => {
+  return steps.some(step => step.text?.trim().endsWith('COMPLETE')) ?? false;
+};
+
 function createTaskAgent() {
   const Agent = getAgent();
   return new Agent({
     model: getFlashModel(),
     instructions: TASK_AGENT_INSTRUCTIONS,
-    tools: {
-      google_search: google.tools.googleSearch({}),
-      url_context: google.tools.urlContext({}),
-      execute_shell: executeShellTool,
-    },
+    tools: taskAgentTools,
+    stopWhen: [stepCountIs(10), hasCompleteSignal],
     providerOptions: {
       google: {
         thinkingConfig: {
