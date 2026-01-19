@@ -36,15 +36,25 @@ For each file above (if any), provide:
 - Dependencies on other files
 - Whether reusable or task-specific
 
-## 5. Optimal Procedure (Based on Actual Execution)
-Extract the "shortest path" using ONLY tools and methods actually used:
-- What is the minimal sequence of steps to succeed, knowing what we know now?
-- Reference actual commands executed and files created (by name, don't inline code)
-- Note which steps were essential vs which were detours/debugging
-- What to avoid (anti-patterns discovered during execution)
+## 5. Optimal Procedure (Cookbook)
+Provide the EXACT working procedure as a copy-pasteable cookbook. This is NOT guidance - it's the actual implementation.
 
-IMPORTANT: Only reference tools, commands, and code that were ACTUALLY USED in the transcript.
-Do NOT suggest alternative implementations, different languages, or tools that weren't used.
+Format as numbered steps with concrete code blocks:
+1. [Brief description]
+   \`\`\`bash
+   exact command that was run
+   \`\`\`
+2. [Brief description]
+   \`\`\`bash
+   next exact command
+   \`\`\`
+
+Rules:
+- Shell commands are EPHEMERAL - include them verbatim (they won't persist)
+- Generated files are PERSISTED in sandbox - reference by name only (e.g., "Run create_sub.sh"), don't inline content
+- Parameterize secrets/IDs (e.g., $STRIPE_SECRET_KEY) but keep everything else verbatim
+- Skip failed attempts - only include the working path
+- End with any critical "gotcha" that would cause failure if missed
 
 ---
 Transcript:
