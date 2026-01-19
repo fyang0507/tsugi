@@ -1,6 +1,13 @@
 # Changelog
 
-Last Updated: 2026-01-18
+Last Updated: 2026-01-19
+
+## 2026-01-19: Skill Agent Shell Tool Migration
+
+- **Skill agent migrated**: Converted from `<shell>` literal text pattern to proper `execute_shell` tool, matching task-agent architecture
+- **Shared tool module**: Extracted `executeShellTool` into `src/lib/agent/tools/execute-shell.ts` - both agents now import from single source
+- **ThinkingConfig added**: Task agent now includes `thinkingLevel: 'low'` in providerOptions (skill agent already had it)
+- **Updated instructions**: Skill agent docs now reference tool calls instead of literal text syntax
 
 ## 2026-01-18: Shell Execution Migration to AI SDK Tool
 
