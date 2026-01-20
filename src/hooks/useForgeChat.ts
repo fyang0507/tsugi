@@ -90,12 +90,6 @@ function generateId(): string {
   return Math.random().toString(36).substring(2, 15);
 }
 
-// Detect URLs in text
-function extractUrls(text: string): string[] {
-  const urlRegex = /https?:\/\/[^\s<>"{}|\\^`[\]]+/gi;
-  return text.match(urlRegex) || [];
-}
-
 export interface UseForgeChatOptions {
   initialMessages?: Message[];  // Load from DB on conversation switch
   onMessageComplete?: (message: Message, index: number) => void;  // Called after each message is finalized
@@ -182,25 +176,12 @@ export function useForgeChat(options?: UseForgeChatOptions) {
     const assistantId = generateId();
     const parts: MessagePart[] = [];
     let currentTextContent = '';
-    const collectedSources: Array<{ id: string; url: string; title: string }> = [];
 
     // Stats tracking for this message
     const messageStartTime = Date.now();
     let messageStats: MessageStats = {};
     let messageAgent: 'task' | 'skill' = 'task';
     let messageRawPayload: unknown[] | undefined;
-
-    // Detect URLs in user message - if present, show URL Context tool
-    const userUrls = extractUrls(content);
-    if (userUrls.length > 0) {
-      parts.push({
-        type: 'agent-tool',
-        content: '', // Will be marked complete when response finishes
-        toolName: 'url_context',
-        toolArgs: { url: userUrls[0] }, // Show first URL
-        toolCallId: 'url-context-' + generateId(),
-      });
-    }
 
     // Helper to strip <shell> tags from text and collapse excessive whitespace
     // Also strips incomplete shell tags that are still streaming
@@ -379,31 +360,6 @@ export function useForgeChat(options?: UseForgeChatOptions) {
                 break;
               }
 
-              case 'source': {
-                // Collect source citations from Gemini grounding
-                if (event.sourceId && event.sourceTitle) {
-                  // On first source, create a synthetic Google Search tool part at the BEGINNING
-                  if (collectedSources.length === 0) {
-                    // Insert Google Search tool part at the start (index 0)
-                    // This way it appears before any text content
-                    parts.unshift({
-                      type: 'agent-tool',
-                      content: '', // Will be populated with sources summary
-                      toolName: 'google_search',
-                      toolArgs: {},
-                      toolCallId: 'grounding-search',
-                    });
-                    updateAssistantMessage();
-                  }
-                  collectedSources.push({
-                    id: event.sourceId,
-                    url: event.sourceUrl || '',
-                    title: event.sourceTitle,
-                  });
-                }
-                break;
-              }
-
               case 'usage': {
                 // Accumulate stats across iterations
                 messageStats = {
@@ -448,32 +404,6 @@ export function useForgeChat(options?: UseForgeChatOptions) {
                 if (strippedText) {
                   parts.push({ type: 'text', content: strippedText });
                   currentTextContent = '';
-                }
-
-                // Mark URL Context tool as complete (if present)
-                const urlContextPart = parts.find(
-                  (p) => p.type === 'agent-tool' && p.toolCallId?.startsWith('url-context-')
-                );
-                if (urlContextPart && !urlContextPart.content) {
-                  urlContextPart.content = 'Analyzed'; // Mark as complete
-                }
-
-                // Update Google Search tool part with sources if any were collected
-                if (collectedSources.length > 0) {
-                  const searchPart = parts.find(
-                    (p) => p.type === 'agent-tool' && p.toolCallId === 'grounding-search'
-                  );
-                  if (searchPart) {
-                    // Populate the search part with sources
-                    searchPart.sources = [...collectedSources];
-                    searchPart.content = collectedSources.map((s) => s.title).join(', ');
-                  }
-                  // Also add sources section at the end for clickable links
-                  parts.push({
-                    type: 'sources',
-                    content: '',
-                    sources: [...collectedSources],
-                  });
                 }
 
                 // Finalize message stats (use client-measured total time as fallback)

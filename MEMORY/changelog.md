@@ -2,6 +2,12 @@
 
 Last Updated: 2026-01-19
 
+## 2026-01-19: Wrap Native Tools as Custom Tools
+
+- **Grounding tools workaround**: Created `grounding-tools.ts` with wrapped `searchTool` and `analyzeUrlTool` - each makes a nested `generateText` call with native tool enabled, bypassing Gemini's limitation where native and custom tools can't coexist
+- **Frontend cleanup**: Removed synthetic URL detection, source collection, and native tool event handling from `useForgeChat.ts` (~70 lines); simplified `ChatMessage.tsx` tool name checks
+- **Step limit increase**: Changed `stopWhen` from `stepCountIs(10)` to `stepCountIs(100)` in both agents for longer task executions
+
 ## 2026-01-19: Demo Comparison Mode + Token Fix
 
 - **Comparison mode UI**: 3-pane layout (left/right conversation panes + middle skills showcase) with Normal↔Comparison toggle, drag-and-drop from sidebar, click-to-select with "Add to Left/Right" buttons, and MetricsBar showing time/token savings

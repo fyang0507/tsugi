@@ -1,8 +1,9 @@
-import { google, GoogleGenerativeAIProviderOptions } from '@ai-sdk/google';
+import { GoogleGenerativeAIProviderOptions } from '@ai-sdk/google';
 import { StopCondition, stepCountIs } from 'ai';
 import { getFlashModel } from './model-provider';
 import { getAgent } from './braintrust-wrapper';
 import { executeShellTool } from './tools/execute-shell';
+import { searchTool, analyzeUrlTool } from './tools/grounding-tools';
 
 const TASK_AGENT_INSTRUCTIONS = `You are a Task Execution Agent with access to a skill library.
 
@@ -50,23 +51,7 @@ If you previously suggested skill codification but the user continued without co
 # Action Mechanisms
 
 ## Tools
-You have three tools:
-
-1. **shell** - Run any shell commands in sandbox (file ops, API calls, skill commands)
-2. **google_search** - Search the web for information (research, grounding, exploration, etc.)
-3. **url_context** - Fetch and analyze content from a URL
-
-**IMPORTANT:** When calling tools, use the exact tool names above. Do NOT prefix with "google:" or any namespace. For example, use "shell" not "google:shell".
-
-### How to Use shell
-Call the shell tool with a "command" parameter containing the shell command to run.
-
-Examples of tool calls:
-- To list files: call shell with command="ls"
-- To make an API call: call shell with command="curl -X POST -H 'Content-Type: application/json' -d '{\"content\":\"hello\"}' https://api.example.com"
-- To run a skill command: call shell with command="skill list"
-
-**IMPORTANT:** Do NOT output shell commands as text. Always use the shell tool.
+You have three tools: **shell**, **search**, and **analyze_url**.
 
 #### Skill Commands (Must Start With "skill")
 Skill commands are routed to a special handler only when the command **starts with "skill"**. Any prefix breaks routing.
@@ -119,8 +104,8 @@ When in doubt, make it visible via shell. Hidden work in reasoning can't be codi
 
 // Tools object for type inference in stopWhen condition
 const taskAgentTools = {
-  google_search: google.tools.googleSearch({}),
-  url_context: google.tools.urlContext({}),
+  search: searchTool,
+  analyze_url: analyzeUrlTool,
   shell: executeShellTool,
 };
 
@@ -135,7 +120,7 @@ function createTaskAgent() {
     model: getFlashModel(),
     instructions: TASK_AGENT_INSTRUCTIONS,
     tools: taskAgentTools,
-    stopWhen: [stepCountIs(10), hasCompleteSignal],
+    stopWhen: [stepCountIs(100), hasCompleteSignal],
     providerOptions: {
       google: {
         thinkingConfig: {

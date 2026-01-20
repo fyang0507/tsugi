@@ -157,7 +157,7 @@ function createSkillAgent() {
     model: getFlashModel(),
     instructions: SKILL_AGENT_INSTRUCTIONS,
     tools: skillAgentTools,
-    stopWhen: [stepCountIs(10), hasCompleteSignal],
+    stopWhen: [stepCountIs(100), hasCompleteSignal],
     providerOptions: {
       google: {
         thinkingConfig: {

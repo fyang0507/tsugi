@@ -127,19 +127,19 @@ function ToolPart({ part }: { part: MessagePart }) {
   );
 }
 
-// Render agent tool call (google_search, url_context, get_processed_transcript) - collapsible
+// Render agent tool call (search, analyze_url, get_processed_transcript) - collapsible
 function AgentToolPart({ part }: { part: MessagePart }) {
   const [expanded, setExpanded] = useState(false);
 
-  // Tool names may have namespace prefix like "google_search:google_search"
   const toolName = part.toolName || '';
-  const isGoogleSearch = toolName.includes('google_search');
+  const isSearch = toolName === 'search';
+  const isAnalyzeUrl = toolName === 'analyze_url';
   const isTranscript = toolName.includes('get_processed_transcript');
   const isShellCommand = toolName === 'shell';
-  const toolDisplayName = isGoogleSearch
-    ? 'Google Search'
-    : toolName.includes('url_context')
-      ? 'URL Context'
+  const toolDisplayName = isSearch
+    ? 'Search'
+    : isAnalyzeUrl
+      ? 'Analyze URL'
       : isTranscript
         ? 'Task Summary'
         : isShellCommand
@@ -148,8 +148,7 @@ function AgentToolPart({ part }: { part: MessagePart }) {
 
   // Extract search query, URL, or command from args
   const args = part.toolArgs as Record<string, unknown> | undefined;
-  const queries = args?.queries as string[] | undefined;
-  const toolDetail = queries?.[0] || args?.url || args?.command || '';
+  const toolDetail = args?.query || args?.url || args?.command || '';
 
   const isLoading = !part.content;
   const sources = part.sources || [];
@@ -191,15 +190,7 @@ function AgentToolPart({ part }: { part: MessagePart }) {
       </button>
       {expanded && (
         <div className={`mt-1 ml-5 text-xs bg-zinc-900 rounded p-2 ${isTranscript ? 'max-h-[400px]' : 'max-h-[200px]'} overflow-y-auto`}>
-          {isGoogleSearch && sources.length > 0 ? (
-            <ul className="space-y-1">
-              {sources.map((source) => (
-                <li key={source.id} className="text-zinc-400">
-                  • {source.title}
-                </li>
-              ))}
-            </ul>
-          ) : isTranscript && part.content ? (
+          {(isTranscript || isSearch || isAnalyzeUrl) && part.content ? (
             <div className="prose prose-invert prose-xs max-w-none prose-p:my-1 prose-headings:my-2 prose-ul:my-1 prose-li:my-0">
               <ReactMarkdown remarkPlugins={[remarkGfm]}>
                 {part.content}
