@@ -154,7 +154,7 @@ export async function POST(req: Request) {
           rootSpanId = (spanAny._rootSpanId as string) ?? span.id;
           return agent.stream({ messages: modelMessages });
         },
-        { name: `agent-turn-${conversationId || 'anonymous'}` }
+        { name: `${mode === 'codify-skill' ? 'skill' : 'task'}-agent-${conversationId || 'anonymous'}` }
       );
 
       // Use fullStream to capture both text and tool calls

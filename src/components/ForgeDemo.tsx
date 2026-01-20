@@ -307,11 +307,11 @@ export default function ForgeDemo() {
       return acc;
     }, {} as Record<string, string>);
 
-    // Pass conversation ID for codify-skill mode (tool fetches transcript from DB)
+    // Pass conversation ID for tracing (codify-skill mode also uses it to fetch transcript from DB)
     await sendMessage(
       message,
       currentMode,
-      currentMode === 'codify-skill' ? currentId || undefined : undefined,
+      currentId || undefined,
       Object.keys(envRecord).length > 0 ? envRecord : undefined
     );
   }
