@@ -34,7 +34,6 @@ Last Updated: 2026-01-19
 - **Simplified agent loop**: Removed manual shell tag parsing and command execution - AI SDK now handles tool execution automatically
 - **RequestContext extension**: Added `env` field to pass environment variables to tool's execute function
 - **In-progress fixes**: Addressing AI SDK property naming (`input` vs `args`)
-- **Native tools restored**: Re-added `google_search` and `url_context` alongside custom `execute_shell` tool - contrary to earlier assumptions, Gemini DOES support combining provider-defined tools with custom function tools
 
 ## 2026-01-17: Environment-Based Model Provider Selection
 

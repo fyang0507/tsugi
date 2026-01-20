@@ -79,7 +79,7 @@ AI SDK emits tool-result event
 ## Resolved Issues
 
 1. **AI SDK property naming**: Discovered `part.input` vs `part.args` discrepancy - added type assertion to handle both
-2. **Provider tool compatibility**: ✅ RESOLVED - Native tools (`google_search`, `url_context`) CAN coexist with custom function tools (`execute_shell`). The earlier assumption that Gemini doesn't support this was incorrect - current implementation proves all three tools work together
+2. **Provider tool compatibility**: Native tools (`google_search`, `url_context`) CAN'T coexist with custom function tools (`execute_shell`). The earlier assumption that Gemini doesn't support this was incorrect - current implementation proves all three tools work together
 3. **Debug logging**: Added stream event logging to diagnose tool execution flow
 
 ## Commits
@@ -91,5 +91,5 @@ AI SDK emits tool-result event
 
 1. Test tool execution end-to-end with actual shell commands
 2. Verify sandbox state persistence across tool calls
-3. ~~Consider alternative for google_search/url_context functionality~~ ✅ Not needed - native tools work with custom tools
+3. Consider alternative for google_search/url_context functionality
 4. Remove debug logging once migration is verified stable
