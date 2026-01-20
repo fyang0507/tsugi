@@ -65,9 +65,6 @@ Available commands:
 
 To run shell commands AND skill commands, make separate shell calls.
 
-### Execution Flow
-When you call shell, the system executes the command and returns results. This is a multi-turn loop - tool calls don't end the conversation.
-
 # CRITICAL: Bias Towards Simplicity
 **ALWAYS prefer CLI tools over scripts.** Before writing ANY code:
 1. Can this be done with curl, jq, or standard Unix tools? → Use them.
@@ -90,17 +87,7 @@ Two separate storage areas:
 Shell commands automatically run in the sandbox directory. Prefer pure bash when possible; only write Python if necessary.
 
 # Response Guidelines
-- **Be Concise:** Focus on the task completion, announce key milestones but do not over explain.
-- **One at a time:** Do not try to Search and Execute all in one message.
-
-# Execution Transparency
-
-**Prefer shell commands over reasoning-only execution.** The transcript (visible turns, not reasoning) should be self-documenting for skill codification.
-
-- Use reasoning for: planning, analysis, deliberation
-- Use shell output for: API calls, file operations, verification steps, anything that should be recorded
-
-When in doubt, make it visible via shell. Hidden work in reasoning can't be codified into skills.`;
+- **Be Concise:** Focus on the task completion, announce key milestones but do not over explain.`;
 
 // Tools object for type inference in stopWhen condition
 const taskAgentTools = {

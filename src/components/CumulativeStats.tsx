@@ -13,18 +13,33 @@ export function CumulativeStatsBar({ stats }: CumulativeStatsBarProps) {
     ? ((stats.totalCachedTokens / stats.totalPromptTokens) * 100).toFixed(0)
     : 0;
 
+  // Check if all messages have unavailable tokens
+  const allUnavailable = stats.tokensUnavailableCount === stats.messageCount;
+  const someUnavailable = stats.tokensUnavailableCount > 0 && !allUnavailable;
+
   return (
     <div className="px-6 py-2 bg-zinc-900 border-t border-zinc-800">
       <div className="max-w-4xl mx-auto flex flex-wrap items-center justify-center gap-x-6 text-xs text-zinc-500">
-        <span>Total In: {stats.totalPromptTokens.toLocaleString()}</span>
-        <span>Cached: {stats.totalCachedTokens.toLocaleString()} ({cacheRatio}%)</span>
-        <span>Total Out: {stats.totalCompletionTokens.toLocaleString()}</span>
-        {stats.totalReasoningTokens > 0 && (
-          <span>Reasoning: {stats.totalReasoningTokens.toLocaleString()}</span>
+        {allUnavailable ? (
+          <span title="Token stats unavailable (observability service unreachable)">Tokens: —</span>
+        ) : (
+          <>
+            <span>Total In: {stats.totalPromptTokens.toLocaleString()}{someUnavailable ? '*' : ''}</span>
+            <span>Cached: {stats.totalCachedTokens.toLocaleString()} ({cacheRatio}%)</span>
+            <span>Total Out: {stats.totalCompletionTokens.toLocaleString()}{someUnavailable ? '*' : ''}</span>
+            {stats.totalReasoningTokens > 0 && (
+              <span>Reasoning: {stats.totalReasoningTokens.toLocaleString()}</span>
+            )}
+          </>
         )}
         <span>Time: {(stats.totalExecutionTimeMs / 1000).toFixed(1)}s</span>
         <span className="text-zinc-600">|</span>
         <span>{stats.messageCount} response{stats.messageCount !== 1 ? 's' : ''}</span>
+        {someUnavailable && (
+          <span className="text-zinc-600" title={`${stats.tokensUnavailableCount} response(s) missing token stats`}>
+            *partial
+          </span>
+        )}
       </div>
     </div>
   );

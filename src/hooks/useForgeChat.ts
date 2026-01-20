@@ -21,6 +21,7 @@ export interface MessageStats {
   cachedTokens?: number;
   reasoningTokens?: number;
   executionTimeMs?: number;
+  tokensUnavailable?: boolean; // True when Braintrust stats couldn't be fetched
 }
 
 export interface CumulativeStats {
@@ -30,6 +31,7 @@ export interface CumulativeStats {
   totalReasoningTokens: number;
   totalExecutionTimeMs: number;
   messageCount: number;
+  tokensUnavailableCount: number; // Messages where token stats couldn't be fetched
 }
 
 // Represents one iteration of the agentic loop (model output + optional tool execution)
@@ -67,13 +69,13 @@ interface SSEEvent {
   sourceId?: string;
   sourceUrl?: string;
   sourceTitle?: string;
-  // For usage stats
+  // For usage stats (null when Braintrust unavailable)
   usage?: {
     promptTokens?: number;
     completionTokens?: number;
     cachedContentTokenCount?: number;
     reasoningTokens?: number;
-  };
+  } | null;
   executionTimeMs?: number;
   // For KV cache support
   rawContent?: string;
@@ -108,6 +110,7 @@ export function useForgeChat(options?: UseForgeChatOptions) {
     totalReasoningTokens: 0,
     totalExecutionTimeMs: 0,
     messageCount: 0,
+    tokensUnavailableCount: 0,
   });
   const abortControllerRef = useRef<AbortController | null>(null);
   const iterationsRef = useRef<AgentIteration[]>([]);
@@ -120,10 +123,14 @@ export function useForgeChat(options?: UseForgeChatOptions) {
       const stats = options.initialMessages.reduce(
         (acc, m) => {
           if (m.stats) {
-            acc.totalPromptTokens += m.stats.promptTokens || 0;
-            acc.totalCompletionTokens += m.stats.completionTokens || 0;
-            acc.totalCachedTokens += m.stats.cachedTokens || 0;
-            acc.totalReasoningTokens += m.stats.reasoningTokens || 0;
+            if (m.stats.tokensUnavailable) {
+              acc.tokensUnavailableCount += 1;
+            } else {
+              acc.totalPromptTokens += m.stats.promptTokens || 0;
+              acc.totalCompletionTokens += m.stats.completionTokens || 0;
+              acc.totalCachedTokens += m.stats.cachedTokens || 0;
+              acc.totalReasoningTokens += m.stats.reasoningTokens || 0;
+            }
             acc.totalExecutionTimeMs += m.stats.executionTimeMs || 0;
           }
           if (m.role === 'assistant') {
@@ -138,6 +145,7 @@ export function useForgeChat(options?: UseForgeChatOptions) {
           totalReasoningTokens: 0,
           totalExecutionTimeMs: 0,
           messageCount: 0,
+          tokensUnavailableCount: 0,
         }
       );
       setCumulativeStats(stats);
@@ -361,14 +369,23 @@ export function useForgeChat(options?: UseForgeChatOptions) {
               }
 
               case 'usage': {
-                // Accumulate stats across iterations
-                messageStats = {
-                  promptTokens: (messageStats.promptTokens || 0) + (event.usage?.promptTokens || 0),
-                  completionTokens: (messageStats.completionTokens || 0) + (event.usage?.completionTokens || 0),
-                  cachedTokens: (messageStats.cachedTokens || 0) + (event.usage?.cachedContentTokenCount || 0),
-                  reasoningTokens: (messageStats.reasoningTokens || 0) + (event.usage?.reasoningTokens || 0),
-                  executionTimeMs: (messageStats.executionTimeMs || 0) + (event.executionTimeMs || 0),
-                };
+                if (event.usage) {
+                  // Normal case: accumulate stats from Braintrust
+                  messageStats = {
+                    promptTokens: (messageStats.promptTokens || 0) + (event.usage.promptTokens || 0),
+                    completionTokens: (messageStats.completionTokens || 0) + (event.usage.completionTokens || 0),
+                    cachedTokens: (messageStats.cachedTokens || 0) + (event.usage.cachedContentTokenCount || 0),
+                    reasoningTokens: (messageStats.reasoningTokens || 0) + (event.usage.reasoningTokens || 0),
+                    executionTimeMs: (messageStats.executionTimeMs || 0) + (event.executionTimeMs || 0),
+                  };
+                } else {
+                  // Braintrust unavailable: mark tokens as unavailable but still track time
+                  messageStats = {
+                    ...messageStats,
+                    tokensUnavailable: true,
+                    executionTimeMs: (messageStats.executionTimeMs || 0) + (event.executionTimeMs || 0),
+                  };
+                }
                 // Capture agent from usage event
                 if (event.agent) {
                   messageAgent = event.agent;
@@ -412,14 +429,15 @@ export function useForgeChat(options?: UseForgeChatOptions) {
                   executionTimeMs: messageStats.executionTimeMs || (Date.now() - messageStartTime),
                 };
 
-                // Update cumulative stats
+                // Update cumulative stats (don't accumulate zeros when tokens unavailable)
                 setCumulativeStats((prev) => ({
-                  totalPromptTokens: prev.totalPromptTokens + (finalStats.promptTokens || 0),
-                  totalCompletionTokens: prev.totalCompletionTokens + (finalStats.completionTokens || 0),
-                  totalCachedTokens: prev.totalCachedTokens + (finalStats.cachedTokens || 0),
-                  totalReasoningTokens: prev.totalReasoningTokens + (finalStats.reasoningTokens || 0),
+                  totalPromptTokens: prev.totalPromptTokens + (finalStats.tokensUnavailable ? 0 : (finalStats.promptTokens || 0)),
+                  totalCompletionTokens: prev.totalCompletionTokens + (finalStats.tokensUnavailable ? 0 : (finalStats.completionTokens || 0)),
+                  totalCachedTokens: prev.totalCachedTokens + (finalStats.tokensUnavailable ? 0 : (finalStats.cachedTokens || 0)),
+                  totalReasoningTokens: prev.totalReasoningTokens + (finalStats.tokensUnavailable ? 0 : (finalStats.reasoningTokens || 0)),
                   totalExecutionTimeMs: prev.totalExecutionTimeMs + (finalStats.executionTimeMs || 0),
                   messageCount: prev.messageCount + 1,
+                  tokensUnavailableCount: prev.tokensUnavailableCount + (finalStats.tokensUnavailable ? 1 : 0),
                 }));
 
                 // Update message with final parts, stats, and iterations
@@ -511,6 +529,7 @@ export function useForgeChat(options?: UseForgeChatOptions) {
       totalReasoningTokens: 0,
       totalExecutionTimeMs: 0,
       messageCount: 0,
+      tokensUnavailableCount: 0,
     });
   }, []);
 
