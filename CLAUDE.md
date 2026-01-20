@@ -30,6 +30,32 @@ executeCommand() [command-executor.ts]
 **Storage:**
 - `LocalStorage` (filesystem) for dev, `CloudStorage` (Vercel Blob + Turso) for prod
 
+## Codebase Structure
+
+```
+src/
+├── app/                    # Next.js App Router
+│   ├── api/
+│   │   ├── agent/          # SSE streaming endpoint
+│   │   ├── conversations/  # CRUD for chat history
+│   │   └── skills/         # Skills API
+│   ├── task/               # Task execution page
+│   └── page.tsx            # Main chat UI
+├── components/             # React components (ChatMessage, Sidebar, etc.)
+├── hooks/                  # useForgeChat, useConversations, useSkills
+└── lib/
+    ├── agent/              # Core agent logic
+    │   ├── task-agent.ts   # Task execution agent
+    │   ├── skill-agent.ts  # Skill codification agent
+    │   └── tools/          # execute-shell, grounding, process-transcript
+    ├── db/                 # SQLite/Turso database layer
+    ├── sandbox/            # Sandbox executors (local/Vercel)
+    ├── skills/             # Skill storage (local/cloud)
+    └── tools/              # Command execution layer
+playground/                 # Demo tasks (discord, stripe, youtube-notion)
+MEMORY/                     # Plans, changelogs, progress tracking
+```
+
 ## Tech Stack
 
 - **Package Manager**: `pnpm` (not npm)
