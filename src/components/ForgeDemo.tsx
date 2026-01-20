@@ -98,7 +98,16 @@ export default function ForgeDemo() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [codifyingMessageId, setCodifyingMessageId] = useState<string | null>(null);
   const [selectedSkill, setSelectedSkill] = useState<SkillDetail | null>(null);
-  const [envVars, setEnvVars] = useState<Array<{ key: string; value: string }>>([]);
+  const [envVars, setEnvVars] = useState<Array<{ key: string; value: string }>>(() => {
+    // Load LLM API key from sessionStorage on initial render (set during onboarding, clears on tab close)
+    if (typeof window !== 'undefined') {
+      const savedKey = sessionStorage.getItem(LLM_API_KEY_STORAGE);
+      if (savedKey) {
+        return [{ key: 'GOOGLE_GENERATIVE_AI_API_KEY', value: savedKey }];
+      }
+    }
+    return [];
+  });
   const [envPanelOpen, setEnvPanelOpen] = useState(false);
   const [newEnvKey, setNewEnvKey] = useState('');
   const [newEnvValue, setNewEnvValue] = useState('');
@@ -176,19 +185,6 @@ export default function ForgeDemo() {
     inputRef.current?.focus();
   }, []);
 
-  // Load LLM API key from sessionStorage (set during onboarding, clears on tab close)
-  useEffect(() => {
-    const savedKey = sessionStorage.getItem(LLM_API_KEY_STORAGE);
-    if (savedKey) {
-      setEnvVars((prev) => {
-        // Don't add if already exists
-        if (prev.some((v) => v.key === 'GOOGLE_GENERATIVE_AI_API_KEY')) {
-          return prev;
-        }
-        return [...prev, { key: 'GOOGLE_GENERATIVE_AI_API_KEY', value: savedKey }];
-      });
-    }
-  }, []);
 
   // Auto-resize textarea based on content
   useEffect(() => {

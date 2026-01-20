@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 interface AnimatedCounterProps {
   value: number;
@@ -20,10 +20,11 @@ export function AnimatedCounter({
   className = '',
 }: AnimatedCounterProps) {
   const [displayValue, setDisplayValue] = useState(0);
+  const startValueRef = useRef(0);
 
   useEffect(() => {
     const startTime = Date.now();
-    const startValue = displayValue;
+    const startValue = startValueRef.current;
     const diff = value - startValue;
 
     if (diff === 0) return;
@@ -42,6 +43,7 @@ export function AnimatedCounter({
         requestAnimationFrame(animate);
       } else {
         setDisplayValue(value);
+        startValueRef.current = value;
       }
     };
 
