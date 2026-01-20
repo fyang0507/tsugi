@@ -81,14 +81,18 @@ export async function fetchTraceStats(rootSpanId: string): Promise<TraceStats | 
   }
 
   try {
-    // BTQL query to aggregate token stats across all spans in the trace
+    // BTQL query to get metrics from the top-level agent span
+    // Query all spans in the trace and find the one with highest token count
+    // (the root agent span aggregates metrics from all children)
     const query = `
       SELECT
-        COALESCE(SUM(metrics.prompt_tokens), 0) as prompt_tokens,
-        COALESCE(SUM(metrics.completion_tokens), 0) as completion_tokens,
-        COALESCE(SUM(metrics.prompt_cached_tokens), 0) as cached_tokens
+        COALESCE(metrics.prompt_tokens, 0) as prompt_tokens,
+        COALESCE(metrics.completion_tokens, 0) as completion_tokens,
+        COALESCE(metrics.prompt_cached_tokens, 0) as cached_tokens
       FROM project_logs('${projectId}', shape => 'spans')
       WHERE root_span_id = '${rootSpanId}'
+      ORDER BY (COALESCE(metrics.prompt_tokens, 0) + COALESCE(metrics.completion_tokens, 0)) DESC
+      LIMIT 1
     `;
 
     const response = await fetch('https://api.braintrust.dev/btql', {

@@ -149,9 +149,9 @@ export async function POST(req: Request) {
       // Stream agent response - agent handles multi-step via stopWhen condition
       const result = await traced(
         async (span) => {
-          // The _rootSpanId is the trace-level ID that all child spans share
-          const spanAny = span as unknown as { _rootSpanId?: string };
-          rootSpanId = spanAny._rootSpanId ?? span.id;
+          // Capture root span ID for BTQL query
+          const spanAny = span as unknown as Record<string, unknown>;
+          rootSpanId = (spanAny._rootSpanId as string) ?? span.id;
           return agent.stream({ messages: modelMessages });
         },
         { name: `agent-turn-${conversationId || 'anonymous'}` }
