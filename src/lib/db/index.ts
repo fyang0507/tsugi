@@ -37,10 +37,6 @@ export interface Conversation {
 export async function initDb(): Promise<void> {
   const client = getDb();
 
-  // MIGRATION v2: Drop old tables to add agent column (remove after deploy)
-  await client.execute(`DROP TABLE IF EXISTS messages`);
-  await client.execute(`DROP TABLE IF EXISTS conversations`);
-
   await client.execute(`
     CREATE TABLE IF NOT EXISTS conversations (
       id TEXT PRIMARY KEY,
