@@ -4,7 +4,7 @@ import { toModelMessages, type APIMessage } from '@/lib/messages/transform';
 import { clearSandboxExecutor, getSandboxExecutor } from '@/lib/sandbox/executor';
 import { mergePlaygroundEnv } from '@/lib/tools/playground-env';
 import { runWithRequestContext } from '@/lib/agent/request-context';
-import { traced } from 'braintrust';
+import { traced, flush } from 'braintrust';
 import { fetchTraceStats } from '@/lib/braintrust-api';
 
 type AgentMode = 'task' | 'codify-skill';
@@ -149,7 +149,9 @@ export async function POST(req: Request) {
       // Stream agent response - agent handles multi-step via stopWhen condition
       const result = await traced(
         async (span) => {
-          rootSpanId = span.id;
+          // The _rootSpanId is the trace-level ID that all child spans share
+          const spanAny = span as unknown as { _rootSpanId?: string };
+          rootSpanId = spanAny._rootSpanId ?? span.id;
           return agent.stream({ messages: modelMessages });
         },
         { name: `agent-turn-${conversationId || 'anonymous'}` }
@@ -247,8 +249,8 @@ export async function POST(req: Request) {
       // This includes all nested LLM calls from tools (search, analyze_url, etc.)
       let braintrustStats = null;
       if (rootSpanId) {
-        // Small delay to ensure spans are flushed to Braintrust
-        await new Promise(resolve => setTimeout(resolve, 100));
+        // Flush pending spans to Braintrust before querying
+        await flush();
         braintrustStats = await fetchTraceStats(rootSpanId);
       }
 

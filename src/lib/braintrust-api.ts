@@ -19,6 +19,46 @@ interface BTQLResponse {
   }>;
 }
 
+interface ProjectResponse {
+  objects?: Array<{ id: string; name: string }>;
+}
+
+// Cache project ID to avoid repeated lookups
+let cachedProjectId: string | null = null;
+
+/**
+ * Resolves project name to project ID using Braintrust REST API.
+ * BTQL requires project ID (UUID), not project name.
+ */
+async function getProjectId(apiKey: string, projectName: string): Promise<string | null> {
+  if (cachedProjectId) return cachedProjectId;
+
+  try {
+    const response = await fetch('https://api.braintrust.dev/v1/project', {
+      headers: { 'Authorization': `Bearer ${apiKey}` },
+    });
+
+    if (!response.ok) {
+      console.error('[Braintrust] Failed to fetch projects:', response.status);
+      return null;
+    }
+
+    const result: ProjectResponse = await response.json();
+    const project = result.objects?.find(p => p.name === projectName);
+
+    if (!project) {
+      console.error('[Braintrust] Project not found:', projectName);
+      return null;
+    }
+
+    cachedProjectId = project.id;
+    return cachedProjectId;
+  } catch (error) {
+    console.error('[Braintrust] Failed to resolve project ID:', error);
+    return null;
+  }
+}
+
 /**
  * Fetches aggregated token stats for a trace from Braintrust BTQL API.
  *
@@ -34,6 +74,12 @@ export async function fetchTraceStats(rootSpanId: string): Promise<TraceStats | 
     return null;
   }
 
+  // Resolve project name to ID (BTQL requires UUID, not name)
+  const projectId = await getProjectId(apiKey, projectName);
+  if (!projectId) {
+    return null;
+  }
+
   try {
     // BTQL query to aggregate token stats across all spans in the trace
     const query = `
@@ -41,7 +87,7 @@ export async function fetchTraceStats(rootSpanId: string): Promise<TraceStats | 
         COALESCE(SUM(metrics.prompt_tokens), 0) as prompt_tokens,
         COALESCE(SUM(metrics.completion_tokens), 0) as completion_tokens,
         COALESCE(SUM(metrics.prompt_cached_tokens), 0) as cached_tokens
-      FROM project_logs('${projectName}', shape => 'spans')
+      FROM project_logs('${projectId}', shape => 'spans')
       WHERE root_span_id = '${rootSpanId}'
     `;
 
