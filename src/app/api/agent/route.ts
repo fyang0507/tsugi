@@ -4,6 +4,8 @@ import { toModelMessages, type APIMessage } from '@/lib/messages/transform';
 import { clearSandboxExecutor, getSandboxExecutor } from '@/lib/sandbox/executor';
 import { mergePlaygroundEnv } from '@/lib/tools/playground-env';
 import { runWithRequestContext } from '@/lib/agent/request-context';
+import { traced } from 'braintrust';
+import { fetchTraceStats } from '@/lib/braintrust-api';
 
 type AgentMode = 'task' | 'codify-skill';
 
@@ -28,7 +30,7 @@ interface SSEEvent {
     completionTokens?: number;
     cachedContentTokenCount?: number;
     reasoningTokens?: number;
-  };
+  } | null;
   executionTimeMs?: number;
   // For KV cache support
   rawContent?: string;
@@ -137,19 +139,21 @@ export async function POST(req: Request) {
       // Convert to ModelMessage array (preserves structure for KV cache)
       const modelMessages = toModelMessages(messages);
 
-      // Track cumulative usage across all steps (for multi-step agentic flows)
-      const cumulativeUsage = {
-        inputTokens: 0,
-        outputTokens: 0,
-        cacheReadTokens: 0,
-        reasoningTokens: 0,
-      };
-
       // Collect all raw stream parts for debugging
       const rawStreamParts: unknown[] = [];
 
+      // Wrap agent execution with Braintrust tracing to capture root span ID
+      // This allows us to query BTQL for aggregated token stats across all nested LLM calls
+      let rootSpanId: string | undefined;
+
       // Stream agent response - agent handles multi-step via stopWhen condition
-      const result = await agent.stream({ messages: modelMessages });
+      const result = await traced(
+        async (span) => {
+          rootSpanId = span.id;
+          return agent.stream({ messages: modelMessages });
+        },
+        { name: `agent-turn-${conversationId || 'anonymous'}` }
+      );
 
       // Use fullStream to capture both text and tool calls
       for await (const part of result.fullStream) {
@@ -227,27 +231,7 @@ export async function POST(req: Request) {
             // Handle step-finish events (not in TypeScript types but emitted by AI SDK)
             const eventType = (part as { type: string }).type;
             if (eventType === 'step-finish') {
-              // Accumulate usage from each step (for multi-step agentic flows)
-              // AI SDK v6 uses inputTokens/outputTokens (not promptTokens/completionTokens)
-              const stepPart = part as {
-                usage?: {
-                  inputTokens?: number;
-                  outputTokens?: number;
-                  inputTokenDetails?: {
-                    cacheReadTokens?: number;
-                  };
-                  outputTokenDetails?: {
-                    reasoningTokens?: number;
-                  };
-                };
-              };
-              if (stepPart.usage) {
-                cumulativeUsage.inputTokens += stepPart.usage.inputTokens || 0;
-                cumulativeUsage.outputTokens += stepPart.usage.outputTokens || 0;
-                cumulativeUsage.cacheReadTokens += stepPart.usage.inputTokenDetails?.cacheReadTokens || 0;
-                cumulativeUsage.reasoningTokens += stepPart.usage.outputTokenDetails?.reasoningTokens || 0;
-              }
-              console.log('[Step Debug] Step finished, cumulative usage:', cumulativeUsage);
+              console.log('[Step Debug] Step finished');
             } else {
               // Log other unhandled event types for debugging
               console.log('[Stream Debug] Unhandled event type:', eventType);
@@ -257,39 +241,31 @@ export async function POST(req: Request) {
         }
       }
 
-      // Get usage metadata including cache stats
-      const usage = await result.usage;
-      const cacheReadTokens = usage?.inputTokenDetails?.cacheReadTokens;
-      const reasoningTokens = (usage?.outputTokenDetails as { reasoningTokens?: number })?.reasoningTokens;
       const executionTimeMs = Date.now() - startTime;
 
-      // Use cumulative usage from step-finish events if available (more accurate for multi-step)
-      // Fall back to final result.usage if no step events were captured
-      const hasCumulativeUsage = cumulativeUsage.inputTokens > 0 || cumulativeUsage.outputTokens > 0;
-      const finalInputTokens = hasCumulativeUsage ? cumulativeUsage.inputTokens : usage?.inputTokens;
-      const finalOutputTokens = hasCumulativeUsage ? cumulativeUsage.outputTokens : usage?.outputTokens;
-      const finalCacheTokens = hasCumulativeUsage ? cumulativeUsage.cacheReadTokens : cacheReadTokens;
-      const finalReasoningTokens = hasCumulativeUsage ? cumulativeUsage.reasoningTokens : reasoningTokens;
+      // Fetch complete token stats from Braintrust BTQL
+      // This includes all nested LLM calls from tools (search, analyze_url, etc.)
+      let braintrustStats = null;
+      if (rootSpanId) {
+        // Small delay to ensure spans are flushed to Braintrust
+        await new Promise(resolve => setTimeout(resolve, 100));
+        braintrustStats = await fetchTraceStats(rootSpanId);
+      }
 
-      console.log('[Cache Debug]', {
-        inputTokens: finalInputTokens,
-        outputTokens: finalOutputTokens,
-        cacheReadTokens: finalCacheTokens,
-        reasoningTokens: finalReasoningTokens,
+      console.log('[Braintrust Stats]', {
+        rootSpanId,
+        stats: braintrustStats,
         executionTimeMs,
-        usedCumulative: hasCumulativeUsage,
-        rawUsage: { input: usage?.inputTokens, output: usage?.outputTokens },
-        inputTokenDetails: JSON.stringify(usage?.inputTokenDetails),
       });
 
+      // Send usage stats - may be null if Braintrust is unavailable
       send({
         type: 'usage',
-        usage: {
-          promptTokens: finalInputTokens,
-          completionTokens: finalOutputTokens,
-          cachedContentTokenCount: finalCacheTokens,
-          reasoningTokens: finalReasoningTokens,
-        },
+        usage: braintrustStats ? {
+          promptTokens: braintrustStats.promptTokens,
+          completionTokens: braintrustStats.completionTokens,
+          cachedContentTokenCount: braintrustStats.cachedTokens,
+        } : null,
         executionTimeMs,
         agent: mode === 'codify-skill' ? 'skill' : 'task',
       });

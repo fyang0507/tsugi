@@ -1,0 +1,79 @@
+/**
+ * Braintrust BTQL API Client
+ *
+ * Fetches aggregated token stats from Braintrust by querying all spans
+ * within a trace using the root_span_id.
+ */
+
+export interface TraceStats {
+  promptTokens: number;
+  completionTokens: number;
+  cachedTokens: number;
+}
+
+interface BTQLResponse {
+  data?: Array<{
+    prompt_tokens: number;
+    completion_tokens: number;
+    cached_tokens: number;
+  }>;
+}
+
+/**
+ * Fetches aggregated token stats for a trace from Braintrust BTQL API.
+ *
+ * @param rootSpanId - The root span ID to query stats for
+ * @returns TraceStats if successful, null if Braintrust is unavailable
+ */
+export async function fetchTraceStats(rootSpanId: string): Promise<TraceStats | null> {
+  const apiKey = process.env.BRAINTRUST_API_KEY;
+  const projectName = process.env.PROJECT_NAME;
+
+  if (!apiKey || !projectName) {
+    console.warn('[Braintrust] Missing API key or project name, cannot fetch stats');
+    return null;
+  }
+
+  try {
+    // BTQL query to aggregate token stats across all spans in the trace
+    const query = `
+      SELECT
+        COALESCE(SUM(metrics.prompt_tokens), 0) as prompt_tokens,
+        COALESCE(SUM(metrics.completion_tokens), 0) as completion_tokens,
+        COALESCE(SUM(metrics.prompt_cached_tokens), 0) as cached_tokens
+      FROM project_logs('${projectName}', shape => 'spans')
+      WHERE root_span_id = '${rootSpanId}'
+    `;
+
+    const response = await fetch('https://api.braintrust.dev/btql', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ query, fmt: 'json' }),
+    });
+
+    if (!response.ok) {
+      console.error('[Braintrust] BTQL query failed:', response.status, await response.text());
+      return null;
+    }
+
+    const result: BTQLResponse = await response.json();
+
+    if (!result.data || result.data.length === 0) {
+      console.warn('[Braintrust] No data returned for rootSpanId:', rootSpanId);
+      return null;
+    }
+
+    const row = result.data[0];
+    return {
+      promptTokens: row.prompt_tokens ?? 0,
+      completionTokens: row.completion_tokens ?? 0,
+      cachedTokens: row.cached_tokens ?? 0,
+    };
+  } catch (error) {
+    console.error('[Braintrust] Failed to fetch stats:', error);
+    return null;
+  }
+}
