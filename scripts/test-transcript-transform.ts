@@ -40,7 +40,7 @@ async function main() {
 
   console.log('\n=== VERIFICATION ===');
   const hasToolOutput = transcript.includes('[tool]');
-  const hasToolCall = transcript.includes('[tool-call]') || transcript.includes('execute_shell');
+  const hasToolCall = transcript.includes('[tool-call]') || transcript.includes('shell');
   const hasReasoning = transcript.includes('[reasoning]') || transcript.includes('Formulating');
   console.log(`Contains [tool] output: ${hasToolOutput}`);
   console.log(`Contains tool calls: ${hasToolCall}`);

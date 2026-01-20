@@ -46,6 +46,7 @@ export interface Message {
   timestamp: Date;
   stats?: MessageStats;
   iterations?: AgentIteration[];  // For assistant messages: each agentic loop iteration
+  agent?: 'task' | 'skill';      // Which agent generated this message
 }
 
 export type ChatStatus = 'ready' | 'streaming' | 'error';
@@ -78,6 +79,8 @@ interface SSEEvent {
   toolOutput?: string;
   // For sandbox sharing across requests
   sandboxId?: string;
+  // Which agent generated this response
+  agent?: 'task' | 'skill';
 }
 
 function generateId(): string {
@@ -181,6 +184,7 @@ export function useForgeChat(options?: UseForgeChatOptions) {
     // Stats tracking for this message
     const messageStartTime = Date.now();
     let messageStats: MessageStats = {};
+    let messageAgent: 'task' | 'skill' = 'task';
 
     // Detect URLs in user message - if present, show URL Context tool
     const userUrls = extractUrls(content);
@@ -405,6 +409,10 @@ export function useForgeChat(options?: UseForgeChatOptions) {
                   reasoningTokens: (messageStats.reasoningTokens || 0) + (event.usage?.reasoningTokens || 0),
                   executionTimeMs: (messageStats.executionTimeMs || 0) + (event.executionTimeMs || 0),
                 };
+                // Capture agent from usage event
+                if (event.agent) {
+                  messageAgent = event.agent;
+                }
                 break;
               }
 
@@ -489,6 +497,7 @@ export function useForgeChat(options?: UseForgeChatOptions) {
                   timestamp: new Date(),
                   stats: finalStats,
                   iterations: finalIterations,
+                  agent: messageAgent,
                 };
 
                 setMessages((prev) =>

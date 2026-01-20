@@ -33,6 +33,8 @@ interface SSEEvent {
   // For KV cache support
   rawContent?: string;
   toolOutput?: string;
+  // Which agent generated this response
+  agent?: 'task' | 'skill';
 }
 
 function createSSEStream() {
@@ -217,23 +219,24 @@ export async function POST(req: Request) {
             const eventType = (part as { type: string }).type;
             if (eventType === 'step-finish') {
               // Accumulate usage from each step (for multi-step agentic flows)
+              // AI SDK v6 uses inputTokens/outputTokens (not promptTokens/completionTokens)
               const stepPart = part as {
                 usage?: {
-                  promptTokens?: number;
-                  completionTokens?: number;
-                };
-                experimental_providerMetadata?: {
-                  google?: {
-                    cachedContentTokenCount?: number;
+                  inputTokens?: number;
+                  outputTokens?: number;
+                  inputTokenDetails?: {
+                    cacheReadTokens?: number;
+                  };
+                  outputTokenDetails?: {
+                    reasoningTokens?: number;
                   };
                 };
               };
               if (stepPart.usage) {
-                cumulativeUsage.inputTokens += stepPart.usage.promptTokens || 0;
-                cumulativeUsage.outputTokens += stepPart.usage.completionTokens || 0;
-                // Cache tokens from provider metadata
-                const googleMeta = stepPart.experimental_providerMetadata?.google;
-                cumulativeUsage.cacheReadTokens += googleMeta?.cachedContentTokenCount || 0;
+                cumulativeUsage.inputTokens += stepPart.usage.inputTokens || 0;
+                cumulativeUsage.outputTokens += stepPart.usage.outputTokens || 0;
+                cumulativeUsage.cacheReadTokens += stepPart.usage.inputTokenDetails?.cacheReadTokens || 0;
+                cumulativeUsage.reasoningTokens += stepPart.usage.outputTokenDetails?.reasoningTokens || 0;
               }
               console.log('[Step Debug] Step finished, cumulative usage:', cumulativeUsage);
             } else {
@@ -257,12 +260,13 @@ export async function POST(req: Request) {
       const finalInputTokens = hasCumulativeUsage ? cumulativeUsage.inputTokens : usage?.inputTokens;
       const finalOutputTokens = hasCumulativeUsage ? cumulativeUsage.outputTokens : usage?.outputTokens;
       const finalCacheTokens = hasCumulativeUsage ? cumulativeUsage.cacheReadTokens : cacheReadTokens;
+      const finalReasoningTokens = hasCumulativeUsage ? cumulativeUsage.reasoningTokens : reasoningTokens;
 
       console.log('[Cache Debug]', {
         inputTokens: finalInputTokens,
         outputTokens: finalOutputTokens,
         cacheReadTokens: finalCacheTokens,
-        reasoningTokens,
+        reasoningTokens: finalReasoningTokens,
         executionTimeMs,
         usedCumulative: hasCumulativeUsage,
         rawUsage: { input: usage?.inputTokens, output: usage?.outputTokens },
@@ -275,9 +279,10 @@ export async function POST(req: Request) {
           promptTokens: finalInputTokens,
           completionTokens: finalOutputTokens,
           cachedContentTokenCount: finalCacheTokens,
-          reasoningTokens,
+          reasoningTokens: finalReasoningTokens,
         },
         executionTimeMs,
+        agent: mode === 'codify-skill' ? 'skill' : 'task',
       });
 
       send({ type: 'done' });

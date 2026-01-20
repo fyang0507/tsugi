@@ -129,7 +129,7 @@ export function ComparisonPane({
   );
 }
 
-// Calculate cumulative stats from messages
+// Calculate cumulative stats from messages (excludes skill-agent tokens)
 function calculateStats(messages: Message[]): ConversationStats {
   let totalPromptTokens = 0;
   let totalCompletionTokens = 0;
@@ -141,8 +141,9 @@ function calculateStats(messages: Message[]): ConversationStats {
   for (const message of messages) {
     // Skip user messages
     if (message.role !== 'assistant') continue;
-    // Skip skill codification messages (they have mode='codify-skill' context)
-    // For now, include all assistant messages - can filter by mode later
+
+    // Skip skill-agent responses
+    if (message.agent === 'skill') continue;
 
     const stats = message.stats;
     if (stats) {

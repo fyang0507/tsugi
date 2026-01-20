@@ -5,4 +5,4 @@ description: Set up a recurring subscription from scratch using Stripe API
 
 Create a working active $69.99/month subscription (G3-hackathon-pack) for a customer (Cindy) using the Stripe API.
 Auth: Bearer token STRIPE_SECRET_KEY already loaded as env var.
-Success criteria: A subscription with status "active" for email "cindyx@company.com"
+Success criteria: A subscription with status "active" for email "cindy@company.com"

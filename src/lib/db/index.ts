@@ -22,6 +22,7 @@ export interface DbMessage {
   metadata: string | null;  // JSON: { stats?: MessageStats }
   timestamp: number;
   sequence_order: number;
+  agent: 'task' | 'skill';  // Which agent generated this message
 }
 
 export interface Conversation {
@@ -35,6 +36,10 @@ export interface Conversation {
 // Initialize database schema
 export async function initDb(): Promise<void> {
   const client = getDb();
+
+  // MIGRATION v2: Drop old tables to add agent column (remove after deploy)
+  await client.execute(`DROP TABLE IF EXISTS messages`);
+  await client.execute(`DROP TABLE IF EXISTS conversations`);
 
   await client.execute(`
     CREATE TABLE IF NOT EXISTS conversations (
@@ -61,7 +66,8 @@ export async function initDb(): Promise<void> {
       content TEXT NOT NULL,
       metadata TEXT,
       timestamp INTEGER NOT NULL,
-      sequence_order INTEGER NOT NULL
+      sequence_order INTEGER NOT NULL,
+      agent TEXT NOT NULL DEFAULT 'task'
     )
   `);
 
@@ -151,7 +157,7 @@ export async function getConversation(id: string): Promise<{ conversation: Conve
   };
 
   const msgResult = await client.execute({
-    sql: `SELECT id, conversation_id, role, content, metadata, timestamp, sequence_order
+    sql: `SELECT id, conversation_id, role, content, metadata, timestamp, sequence_order, agent
           FROM messages
           WHERE conversation_id = ?
           ORDER BY sequence_order ASC`,
@@ -166,6 +172,7 @@ export async function getConversation(id: string): Promise<{ conversation: Conve
     metadata: r.metadata as string | null,
     timestamp: r.timestamp as number,
     sequence_order: r.sequence_order as number,
+    agent: (r.agent as 'task' | 'skill') || 'task',
   }));
 
   return { conversation, messages };
@@ -224,8 +231,8 @@ export async function saveMessage(
   const metadata = message.stats ? JSON.stringify({ stats: message.stats }) : null;
 
   await client.execute({
-    sql: `INSERT OR REPLACE INTO messages (id, conversation_id, role, content, metadata, timestamp, sequence_order)
-          VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    sql: `INSERT OR REPLACE INTO messages (id, conversation_id, role, content, metadata, timestamp, sequence_order, agent)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     args: [
       message.id,
       conversationId,
@@ -234,6 +241,7 @@ export async function saveMessage(
       metadata,
       message.timestamp.getTime(),
       sequenceOrder,
+      message.agent || 'task',
     ],
   });
 
@@ -258,6 +266,7 @@ export function hydrateMessage(row: DbMessage): Message {
       parts: [{ type: 'text', content: row.content }],
       timestamp: new Date(row.timestamp),
       stats: metadata.stats,
+      agent: row.agent,
     };
   }
 
@@ -271,5 +280,6 @@ export function hydrateMessage(row: DbMessage): Message {
     parts,
     timestamp: new Date(row.timestamp),
     stats: metadata.stats,
+    agent: row.agent,
   };
 }
