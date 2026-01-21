@@ -41,7 +41,7 @@ export function DemoLayout({
   }, []);
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col flex-1 min-h-0">
       {/* 3-pane layout */}
       <div className="flex-1 flex gap-4 p-4 overflow-hidden">
         {/* Left pane - Run 1 (Learning) */}

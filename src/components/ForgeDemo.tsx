@@ -405,7 +405,7 @@ export default function ForgeDemo() {
   }, []);
 
   return (
-    <div className="flex h-screen bg-zinc-950 text-zinc-100">
+    <div className="flex h-screen bg-zinc-950 text-zinc-100 overflow-hidden">
       {/* Sandbox timeout notification */}
       {sandboxTimeoutMessage && (
         <SandboxTimeoutBanner
@@ -436,10 +436,10 @@ export default function ForgeDemo() {
       />
 
       {/* Main content */}
-      <div className={`flex flex-col flex-1 transition-all duration-200 ${sidebarOpen ? 'ml-64' : 'ml-0'}`}>
+      <div className={`flex flex-col flex-1 min-w-0 transition-all duration-200 ${sidebarOpen ? 'ml-64' : 'ml-0'}`}>
         {/* Header */}
         <header className="flex-shrink-0 px-6 py-4 border-b border-zinc-800">
-          <div className={`${isComparisonMode ? '' : 'max-w-4xl'} mx-auto flex items-center justify-between`}>
+          <div className={`w-full ${isComparisonMode ? '' : 'max-w-4xl'} mx-auto flex items-center justify-between`}>
             <div className={`transition-all ${sidebarOpen ? '' : 'ml-12'}`}>
               <h1 className="text-xl font-bold">SkillForge</h1>
               <p className="text-sm text-zinc-400">
@@ -502,8 +502,8 @@ export default function ForgeDemo() {
         ) : (
           <>
             {/* Messages area */}
-            <div className="flex-1 overflow-y-auto">
-              <div className="max-w-4xl mx-auto px-6 py-6">
+            <div className="flex-1 overflow-y-auto overflow-x-hidden">
+              <div className="w-full max-w-4xl mx-auto px-6 py-6">
                 {/* Error banner */}
                 {error && (
                   <div className="mb-4 p-4 bg-red-900/60 border border-red-700 rounded-lg flex items-start gap-3">
@@ -574,7 +574,7 @@ export default function ForgeDemo() {
             {/* Input area */}
             <div className="flex-shrink-0 border-t border-zinc-800 px-6 py-4">
           {/* API Keys Panel */}
-          <div className="max-w-4xl mx-auto mb-3">
+          <div className="w-full max-w-4xl mx-auto mb-3">
             <button
               type="button"
               onClick={() => setEnvPanelOpen(!envPanelOpen)}
@@ -665,7 +665,7 @@ export default function ForgeDemo() {
             )}
           </div>
 
-          <form onSubmit={handleSubmit} className="max-w-4xl mx-auto">
+          <form onSubmit={handleSubmit} className="w-full max-w-4xl mx-auto">
             <div className="flex gap-3 items-end">
               <div className="flex-1 relative">
                 <textarea
