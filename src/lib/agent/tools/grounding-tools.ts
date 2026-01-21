@@ -9,7 +9,7 @@ import { getGenerateText } from '../braintrust-wrapper';
  * and custom tools cannot coexist in the same agent.
  */
 export const searchTool = {
-  description: `Search the web for information. Returns relevant search results and summaries.`,
+  description: `Search the web to research HOW to accomplish tasks programmatically. Use this to find API documentation, integration guides, and implementation approaches - then write code to execute. Avoid using search as a data-fetching mechanism for repetitive lookups.`,
   inputSchema: z.object({
     query: z.string().describe('The search query'),
   }),
@@ -34,7 +34,7 @@ export const searchTool = {
  * and custom tools cannot coexist in the same agent.
  */
 export const analyzeUrlTool = {
-  description: `Analyze a URL to extract and understand its content (web pages, YouTube videos, etc).`,
+  description: `Analyze a URL to extract and understand its content. Appropriate uses: reading documentation, understanding API responses, analyzing video/media content. For video content specifically, this IS the execution method since video transcripts can only be accessed this way.`,
   inputSchema: z.object({
     url: z.string().describe('The URL to analyze'),
   }),
