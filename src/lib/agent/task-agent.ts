@@ -5,7 +5,7 @@ import { getAgent } from './braintrust-wrapper';
 import { executeShellTool } from './tools/execute-shell';
 import { searchTool, analyzeUrlTool } from './tools/grounding-tools';
 
-const TASK_AGENT_INSTRUCTIONS = `You are a Task Execution Agent with access to a skill library.
+export const TASK_AGENT_INSTRUCTIONS = `You are a Task Execution Agent with access to a skill library.
 
 # Task Classification
 

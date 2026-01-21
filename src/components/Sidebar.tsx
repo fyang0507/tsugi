@@ -17,6 +17,7 @@ interface SidebarProps {
   skillsLoading: boolean;
   onDeleteSkill: (name: string) => void;
   onSelectSkill: (name: string) => void;
+  onShowSystemPrompt: () => void;
   // Comparison mode props
   isComparisonMode?: boolean;
   selectedForComparison?: string | null;
@@ -475,6 +476,7 @@ export function Sidebar({
   skillsLoading,
   onDeleteSkill,
   onSelectSkill,
+  onShowSystemPrompt,
   isComparisonMode,
   selectedForComparison,
   onSelectForComparison,
@@ -679,6 +681,29 @@ export function Sidebar({
               )}
             </div>
           </CollapsibleSection>
+
+          {/* View System Prompt button (for judges) */}
+          <div className="px-3 py-3 border-t border-zinc-800 flex-shrink-0">
+            <button
+              onClick={onShowSystemPrompt}
+              className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition-colors"
+            >
+              <svg
+                className="w-4 h-4 flex-shrink-0"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={1.5}
+                  d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"
+                />
+              </svg>
+              <span className="text-sm">View System Prompt</span>
+            </button>
+          </div>
         </div>
       </aside>
     </>

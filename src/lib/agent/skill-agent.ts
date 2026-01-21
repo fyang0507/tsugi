@@ -7,7 +7,7 @@ import { processTranscript } from './tools/process-transcript';
 import { getRequestContext } from './request-context';
 import { executeShellTool } from './tools/execute-shell';
 
-const SKILL_AGENT_INSTRUCTIONS = `You are a Skill Codification Agent in a dual-agent system.
+export const SKILL_AGENT_INSTRUCTIONS = `You are a Skill Codification Agent in a dual-agent system.
 
 # Context
 You are invoked AFTER a Task Agent has completed a user's task. The Task Agent executed commands, ran code, and potentially learned something worth saving. Your job is to analyze what happened and decide whether to codify reusable knowledge as a "skill" for future tasks.

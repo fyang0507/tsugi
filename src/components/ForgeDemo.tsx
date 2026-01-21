@@ -93,11 +93,126 @@ function SkillDetailModal({
   );
 }
 
+// System Prompt Modal Component
+function SystemPromptModal({
+  onClose,
+}: {
+  onClose: () => void;
+}) {
+  const [activeTab, setActiveTab] = useState<'task' | 'skill'>('task');
+  const [prompts, setPrompts] = useState<{ taskAgent: string; skillAgent: string } | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch('/api/prompts')
+      .then(res => res.json())
+      .then(data => {
+        setPrompts(data);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, []);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      {/* Backdrop */}
+      <div className="absolute inset-0 bg-black/60" onClick={onClose} />
+
+      {/* Modal */}
+      <div className="relative bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl w-full max-w-3xl max-h-[85vh] overflow-hidden mx-4">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-700">
+          <div>
+            <h2 className="text-lg font-semibold text-zinc-100">Agent System Prompts</h2>
+            <p className="text-sm text-zinc-400 mt-0.5">
+              View the instructions that guide our AI agents
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 rounded-lg hover:bg-zinc-800 transition-colors"
+          >
+            <svg className="w-5 h-5 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex border-b border-zinc-700">
+          <button
+            onClick={() => setActiveTab('task')}
+            className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+              activeTab === 'task'
+                ? 'text-blue-400 border-b-2 border-blue-400 bg-zinc-800/50'
+                : 'text-zinc-400 hover:text-zinc-200'
+            }`}
+          >
+            Task Agent
+          </button>
+          <button
+            onClick={() => setActiveTab('skill')}
+            className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+              activeTab === 'skill'
+                ? 'text-emerald-400 border-b-2 border-emerald-400 bg-zinc-800/50'
+                : 'text-zinc-400 hover:text-zinc-200'
+            }`}
+          >
+            Skill Agent
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="px-6 py-4 overflow-y-auto max-h-[calc(85vh-180px)]">
+          {loading ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-zinc-400" />
+            </div>
+          ) : (
+            <>
+              {activeTab === 'task' && (
+                <div>
+                  <div className="mb-3 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                    <p className="text-sm text-blue-300">
+                      <strong>Task Agent:</strong> Executes user tasks in a sandbox environment. Has access to a skill library for reusable procedures.
+                    </p>
+                  </div>
+                  <pre className="text-sm text-zinc-300 whitespace-pre-wrap font-mono bg-zinc-800/50 rounded-lg p-4 overflow-x-auto">
+                    {prompts?.taskAgent || 'Failed to load prompt'}
+                  </pre>
+                </div>
+              )}
+              {activeTab === 'skill' && (
+                <div>
+                  <div className="mb-3 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
+                    <p className="text-sm text-emerald-300">
+                      <strong>Skill Agent:</strong> Analyzes completed task transcripts and codifies reusable knowledge into skills for future runs.
+                    </p>
+                  </div>
+                  <pre className="text-sm text-zinc-300 whitespace-pre-wrap font-mono bg-zinc-800/50 rounded-lg p-4 overflow-x-auto">
+                    {prompts?.skillAgent || 'Failed to load prompt'}
+                  </pre>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-3 border-t border-zinc-700 text-xs text-zinc-500">
+          SkillForge Dual-Agent System
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ForgeDemo() {
   const [input, setInput] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [codifyingMessageId, setCodifyingMessageId] = useState<string | null>(null);
   const [selectedSkill, setSelectedSkill] = useState<SkillDetail | null>(null);
+  const [showSystemPrompt, setShowSystemPrompt] = useState(false);
   const [envVars, setEnvVars] = useState<Array<{ key: string; value: string }>>(() => {
     // Load LLM API key from sessionStorage on initial render (set during onboarding, clears on tab close)
     if (typeof window !== 'undefined') {
@@ -428,6 +543,7 @@ export default function ForgeDemo() {
         skillsLoading={skillsLoading}
         onDeleteSkill={deleteSkill}
         onSelectSkill={handleSelectSkill}
+        onShowSystemPrompt={() => setShowSystemPrompt(true)}
         isComparisonMode={isComparisonMode}
         selectedForComparison={selectedForComparison}
         onSelectForComparison={setSelectedForComparison}
@@ -736,6 +852,11 @@ export default function ForgeDemo() {
           skill={selectedSkill}
           onClose={() => setSelectedSkill(null)}
         />
+      )}
+
+      {/* System Prompt Modal */}
+      {showSystemPrompt && (
+        <SystemPromptModal onClose={() => setShowSystemPrompt(false)} />
       )}
     </div>
   );
