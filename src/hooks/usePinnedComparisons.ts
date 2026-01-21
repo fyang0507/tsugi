@@ -12,7 +12,21 @@ export interface PinnedComparison {
   createdAt: number;
 }
 
-export function usePinnedComparisons() {
+interface UsePinnedComparisonsReturn {
+  pinnedComparisons: PinnedComparison[];
+  pinComparison: (
+    name: string,
+    leftConversationId: string,
+    rightConversationId: string,
+    leftTitle: string,
+    rightTitle: string
+  ) => string;
+  unpinComparison: (id: string) => void;
+  renameComparison: (id: string, newName: string) => void;
+  isPinned: (leftConversationId: string | null, rightConversationId: string | null) => boolean;
+}
+
+export function usePinnedComparisons(): UsePinnedComparisonsReturn {
   const [pinnedComparisons, setPinnedComparisons] = useState<PinnedComparison[]>([]);
 
   const pinComparison = useCallback((
@@ -36,11 +50,11 @@ export function usePinnedComparisons() {
     return id;
   }, []);
 
-  const unpinComparison = useCallback((id: string) => {
+  const unpinComparison = useCallback((id: string): void => {
     setPinnedComparisons(prev => prev.filter(c => c.id !== id));
   }, []);
 
-  const renameComparison = useCallback((id: string, newName: string) => {
+  const renameComparison = useCallback((id: string, newName: string): void => {
     setPinnedComparisons(prev =>
       prev.map(c => (c.id === id ? { ...c, name: newName } : c))
     );

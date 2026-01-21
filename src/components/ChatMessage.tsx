@@ -201,6 +201,23 @@ function ToolPart({ part }: { part: MessagePart }) {
   );
 }
 
+// Get display name for agent tool
+function getToolDisplayName(toolName: string): string {
+  switch (toolName) {
+    case 'search':
+      return 'Search';
+    case 'analyze_url':
+      return 'Analyze URL';
+    case 'shell':
+      return 'Shell';
+    default:
+      if (toolName.includes('get_processed_transcript')) {
+        return 'Task Summary';
+      }
+      return toolName || 'Tool';
+  }
+}
+
 // Render agent tool call (search, analyze_url, get_processed_transcript) - collapsible
 function AgentToolPart({ part }: { part: MessagePart }) {
   const [expanded, setExpanded] = useState(false);
@@ -210,15 +227,7 @@ function AgentToolPart({ part }: { part: MessagePart }) {
   const isAnalyzeUrl = toolName === 'analyze_url';
   const isTranscript = toolName.includes('get_processed_transcript');
   const isShellCommand = toolName === 'shell';
-  const toolDisplayName = isSearch
-    ? 'Search'
-    : isAnalyzeUrl
-      ? 'Analyze URL'
-      : isTranscript
-        ? 'Task Summary'
-        : isShellCommand
-          ? 'Shell'
-          : toolName || 'Tool';
+  const toolDisplayName = getToolDisplayName(toolName);
 
   // Extract search query, URL, or command from args
   const args = part.toolArgs as Record<string, unknown> | undefined;
@@ -280,7 +289,7 @@ function AgentToolPart({ part }: { part: MessagePart }) {
 }
 
 // COMPLETE status badge
-function CompleteBadge() {
+function CompleteBadge(): React.ReactNode {
   return (
     <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 rounded-full text-sm font-medium">
       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -291,8 +300,45 @@ function CompleteBadge() {
   );
 }
 
+// Shared markdown components configuration
+const markdownComponents = {
+  a: ({ href, children }: { href?: string; children?: React.ReactNode }) => (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="text-blue-400 hover:text-blue-300 underline break-all"
+    >
+      {children}
+    </a>
+  ),
+  code: ({ className, children, ...props }: { className?: string; children?: React.ReactNode }) => {
+    const isInline = !className;
+    return isInline ? (
+      <code className="bg-zinc-800 px-1 py-0.5 rounded text-sm break-all" {...props}>
+        {children}
+      </code>
+    ) : (
+      <code className={`${className} break-all`} {...props}>
+        {children}
+      </code>
+    );
+  },
+};
+
+// Reusable markdown renderer with prose styling
+function MarkdownContent({ children }: { children: string }): React.ReactNode {
+  return (
+    <div className="prose prose-invert prose-sm max-w-none prose-p:my-2 prose-headings:my-3 prose-ul:my-2 prose-ol:my-2 prose-li:my-0.5 prose-pre:bg-zinc-900 prose-pre:border prose-pre:border-zinc-700">
+      <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+        {children}
+      </ReactMarkdown>
+    </div>
+  );
+}
+
 // Render a text part with markdown
-function TextPart({ content }: { content: string }) {
+function TextPart({ content }: { content: string }): React.ReactNode {
   if (!content.trim()) return null;
 
   const trimmed = content.trim();
@@ -309,80 +355,13 @@ function TextPart({ content }: { content: string }) {
     const textWithoutComplete = lines.slice(0, -1).join('\n').trim();
     return (
       <>
-        {textWithoutComplete && (
-          <div className="prose prose-invert prose-sm max-w-none prose-p:my-2 prose-headings:my-3 prose-ul:my-2 prose-ol:my-2 prose-li:my-0.5 prose-pre:bg-zinc-900 prose-pre:border prose-pre:border-zinc-700">
-            <ReactMarkdown
-              remarkPlugins={[remarkGfm]}
-              components={{
-                a: ({ href, children }) => (
-                  <a
-                    href={href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-400 hover:text-blue-300 underline break-all"
-                  >
-                    {children}
-                  </a>
-                ),
-                code: ({ className, children, ...props }) => {
-                  const isInline = !className;
-                  return isInline ? (
-                    <code className="bg-zinc-800 px-1 py-0.5 rounded text-sm break-all" {...props}>
-                      {children}
-                    </code>
-                  ) : (
-                    <code className={`${className} break-all`} {...props}>
-                      {children}
-                    </code>
-                  );
-                },
-              }}
-            >
-              {textWithoutComplete}
-            </ReactMarkdown>
-          </div>
-        )}
+        {textWithoutComplete && <MarkdownContent>{textWithoutComplete}</MarkdownContent>}
         <div className="mt-3"><CompleteBadge /></div>
       </>
     );
   }
 
-  // Regular markdown rendering
-  return (
-    <div className="prose prose-invert prose-sm max-w-none prose-p:my-2 prose-headings:my-3 prose-ul:my-2 prose-ol:my-2 prose-li:my-0.5 prose-pre:bg-zinc-900 prose-pre:border prose-pre:border-zinc-700">
-      <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
-        components={{
-          // Properly render links with URL handling
-          a: ({ href, children }) => (
-            <a
-              href={href}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-blue-400 hover:text-blue-300 underline break-all"
-            >
-              {children}
-            </a>
-          ),
-          // Ensure code blocks handle long content
-          code: ({ className, children, ...props }) => {
-            const isInline = !className;
-            return isInline ? (
-              <code className="bg-zinc-800 px-1 py-0.5 rounded text-sm break-all" {...props}>
-                {children}
-              </code>
-            ) : (
-              <code className={`${className} break-all`} {...props}>
-                {children}
-              </code>
-            );
-          },
-        }}
-      >
-        {content}
-      </ReactMarkdown>
-    </div>
-  );
+  return <MarkdownContent>{content}</MarkdownContent>;
 }
 
 // Render sources citations

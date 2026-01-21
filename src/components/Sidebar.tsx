@@ -5,6 +5,32 @@ import type { GroupedConversations, Conversation } from '@/hooks/useConversation
 import type { SkillMeta } from '@/hooks/useSkills';
 import type { PinnedComparison } from '@/hooks/usePinnedComparisons';
 
+// Calculate menu position to avoid overflow at bottom of screen
+function calculateMenuPosition(
+  buttonRef: React.RefObject<HTMLButtonElement | null>,
+  menuHeight: number = 80
+): React.CSSProperties {
+  if (!buttonRef.current) return {};
+
+  const rect = buttonRef.current.getBoundingClientRect();
+  const spaceBelow = window.innerHeight - rect.bottom;
+
+  if (spaceBelow < menuHeight + 10) {
+    // Position above the button
+    return {
+      position: 'fixed',
+      right: window.innerWidth - rect.right,
+      bottom: window.innerHeight - rect.top + 4,
+    };
+  }
+  // Position below the button
+  return {
+    position: 'fixed',
+    right: window.innerWidth - rect.right,
+    top: rect.bottom + 4,
+  };
+}
+
 interface SidebarProps {
   isOpen: boolean;
   onToggle: () => void;
@@ -136,15 +162,23 @@ function ConversationItem({
     }
   };
 
+  // Compute background styling based on state
+  function getItemClassName(): string {
+    const base = 'group relative flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-colors';
+    const dragCursor = isComparisonMode ? 'cursor-grab active:cursor-grabbing' : '';
+
+    if (isSelectedForComparison) {
+      return `${base} bg-blue-600/30 border border-blue-500 ${dragCursor}`;
+    }
+    if (isActive) {
+      return `${base} bg-zinc-700 ${dragCursor}`;
+    }
+    return `${base} hover:bg-zinc-800 ${dragCursor}`;
+  }
+
   return (
     <div
-      className={`group relative flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-colors ${
-        isSelectedForComparison
-          ? 'bg-blue-600/30 border border-blue-500'
-          : isActive
-            ? 'bg-zinc-700'
-            : 'hover:bg-zinc-800'
-      } ${isComparisonMode ? 'cursor-grab active:cursor-grabbing' : ''}`}
+      className={getItemClassName()}
       onClick={handleClick}
       onDoubleClick={handleDoubleClick}
       draggable={isComparisonMode}
@@ -191,24 +225,8 @@ function ConversationItem({
             ref={menuButtonRef}
             onClick={(e) => {
               e.stopPropagation();
-              if (!showMenu && menuButtonRef.current) {
-                const rect = menuButtonRef.current.getBoundingClientRect();
-                const spaceBelow = window.innerHeight - rect.bottom;
-                const menuHeight = 80;
-
-                if (spaceBelow < menuHeight + 10) {
-                  setMenuStyle({
-                    position: 'fixed',
-                    right: window.innerWidth - rect.right,
-                    bottom: window.innerHeight - rect.top + 4,
-                  });
-                } else {
-                  setMenuStyle({
-                    position: 'fixed',
-                    right: window.innerWidth - rect.right,
-                    top: rect.bottom + 4,
-                  });
-                }
+              if (!showMenu) {
+                setMenuStyle(calculateMenuPosition(menuButtonRef));
               }
               setShowMenu(!showMenu);
             }}
@@ -339,26 +357,8 @@ function SkillItem({
 
   const handleMenuToggle = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!showMenu && menuButtonRef.current) {
-      const rect = menuButtonRef.current.getBoundingClientRect();
-      const spaceBelow = window.innerHeight - rect.bottom;
-      const menuHeight = 80; // Approximate menu height
-
-      if (spaceBelow < menuHeight + 10) {
-        // Position above
-        setMenuStyle({
-          position: 'fixed',
-          right: window.innerWidth - rect.right,
-          bottom: window.innerHeight - rect.top + 4,
-        });
-      } else {
-        // Position below
-        setMenuStyle({
-          position: 'fixed',
-          right: window.innerWidth - rect.right,
-          top: rect.bottom + 4,
-        });
-      }
+    if (!showMenu) {
+      setMenuStyle(calculateMenuPosition(menuButtonRef));
     }
     setShowMenu(!showMenu);
   };
@@ -489,25 +489,7 @@ function PinnedComparisonItem({
 
   const handleMenuClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (menuButtonRef.current) {
-      const rect = menuButtonRef.current.getBoundingClientRect();
-      const spaceBelow = window.innerHeight - rect.bottom;
-      const menuHeight = 60;
-
-      if (spaceBelow < menuHeight + 10) {
-        setMenuStyle({
-          position: 'fixed',
-          right: window.innerWidth - rect.right,
-          bottom: window.innerHeight - rect.top + 4,
-        });
-      } else {
-        setMenuStyle({
-          position: 'fixed',
-          right: window.innerWidth - rect.right,
-          top: rect.bottom + 4,
-        });
-      }
-    }
+    setMenuStyle(calculateMenuPosition(menuButtonRef, 60));
     setShowMenu(!showMenu);
   };
 
