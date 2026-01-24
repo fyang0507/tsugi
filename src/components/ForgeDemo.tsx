@@ -598,7 +598,7 @@ export default function ForgeDemo() {
         <header className="flex-shrink-0 px-6 py-4 border-b border-zinc-800">
           <div className={`w-full ${isComparisonMode ? '' : 'max-w-4xl'} mx-auto flex items-center justify-between`}>
             <div className={`transition-all ${sidebarOpen ? '' : 'ml-12'}`}>
-              <h1 className="text-xl font-bold">Tsugi</h1>
+              <h1 className="text-xl font-bold">tsugi</h1>
               <p className="text-sm text-zinc-400">
                 Learn from YouTube tutorials and create reusable skills
               </p>
