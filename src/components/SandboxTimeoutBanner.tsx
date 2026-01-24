@@ -8,7 +8,7 @@ interface SandboxTimeoutBannerProps {
 export function SandboxTimeoutBanner({ message, onDismiss }: SandboxTimeoutBannerProps) {
   return (
     <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 max-w-lg">
-      <div className="bg-amber-900/90 border border-amber-700 rounded-lg shadow-lg px-4 py-3 flex items-start gap-3">
+      <div className="glass-panel bg-amber-900/60 border border-amber-500/30 rounded-xl shadow-lg px-4 py-3 flex items-start gap-3 backdrop-blur-md">
         {/* Warning icon */}
         <svg
           className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5"

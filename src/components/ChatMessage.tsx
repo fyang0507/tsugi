@@ -113,20 +113,20 @@ function SkillArtifact({ skillName }: SkillArtifactProps) {
   };
 
   return (
-    <div className="my-2 border border-emerald-500/30 rounded-lg overflow-hidden">
+    <div className="my-2 border border-teal-500/30 rounded-xl overflow-hidden">
       <button
         onClick={handleToggle}
-        className="flex items-center gap-2 w-full px-3 py-2 bg-emerald-500/10 hover:bg-emerald-500/20 transition-colors text-left"
+        className="flex items-center gap-2 w-full px-3 py-2 bg-teal-500/10 hover:bg-teal-500/20 transition-colors text-left"
       >
         <ChevronIcon expanded={expanded} />
-        <svg className="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg className="w-4 h-4 text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
-        <span className="text-emerald-400 font-medium">Skill Created</span>
+        <span className="text-teal-400 font-medium">Skill Created</span>
         <code className="text-sm text-zinc-400 bg-zinc-700 px-1.5 rounded">{skillName}</code>
       </button>
       {expanded && (
-        <div className="px-3 py-2 bg-zinc-900 max-h-[300px] overflow-y-auto">
+        <div className="px-3 py-2 max-h-[300px] overflow-y-auto">
           {loading ? (
             <div className="text-zinc-500 text-sm">Loading...</div>
           ) : content ? (
@@ -191,7 +191,7 @@ function ToolPart({ part }: { part: MessagePart }) {
         {config.label && <span className="text-zinc-500 italic flex-shrink-0">{config.label}</span>}
       </button>
       {expanded && (
-        <div className="mt-1 ml-5 text-xs bg-zinc-900 rounded p-2 max-h-[200px] overflow-y-auto">
+        <div className="mt-1 ml-5 text-xs rounded p-2 max-h-[200px] overflow-y-auto">
           <pre className="font-mono text-zinc-300 whitespace-pre-wrap break-all">
             {part.content || <span className="text-zinc-500">{status === 'running' ? 'Running...' : 'Queued...'}</span>}
           </pre>
@@ -272,7 +272,7 @@ function AgentToolPart({ part }: { part: MessagePart }) {
         )}
       </button>
       {expanded && (
-        <div className={`mt-1 ml-5 text-xs bg-zinc-900 rounded p-2 ${isTranscript ? 'max-h-[400px]' : 'max-h-[200px]'} overflow-y-auto`}>
+        <div className={`mt-1 ml-5 text-xs rounded p-2 ${isTranscript ? 'max-h-[400px]' : 'max-h-[200px]'} overflow-y-auto`}>
           {(isTranscript || isSearch || isAnalyzeUrl) && part.content ? (
             <div className="prose prose-invert prose-xs max-w-none prose-p:my-1 prose-headings:my-2 prose-ul:my-1 prose-li:my-0">
               <ReactMarkdown remarkPlugins={[remarkGfm]}>
@@ -291,7 +291,7 @@ function AgentToolPart({ part }: { part: MessagePart }) {
 // COMPLETE status badge
 function CompleteBadge(): React.ReactNode {
   return (
-    <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 rounded-full text-sm font-medium">
+    <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-cyan-500/20 to-teal-500/20 border border-cyan-500/30 text-cyan-400 rounded-full text-sm font-medium">
       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
       </svg>
@@ -307,7 +307,7 @@ const markdownComponents = {
       href={href}
       target="_blank"
       rel="noopener noreferrer"
-      className="text-blue-400 hover:text-blue-300 underline break-all"
+      className="text-cyan-400 hover:text-cyan-300 underline break-all"
     >
       {children}
     </a>
@@ -395,7 +395,7 @@ export default function ChatMessage({ message, onCodifySkill, isCodifying }: Cha
     const textContent = message.parts[0]?.content || '';
     return (
       <div className="flex justify-end w-full min-w-0 max-w-full">
-        <div className="max-w-[80%] min-w-0 px-4 py-3 bg-blue-600 text-white rounded-2xl rounded-br-md overflow-hidden" style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
+        <div className="max-w-[80%] min-w-0 px-4 py-3 chat-bubble-user text-zinc-100 rounded-2xl rounded-br-md overflow-hidden" style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
           <p className="whitespace-pre-wrap break-words">{textContent}</p>
         </div>
       </div>
@@ -413,7 +413,7 @@ export default function ChatMessage({ message, onCodifySkill, isCodifying }: Cha
 
   return (
     <div className="flex justify-start w-full min-w-0">
-      <div className="max-w-[90%] min-w-0 px-4 py-3 bg-zinc-800 text-zinc-100 rounded-2xl rounded-bl-md overflow-hidden">
+      <div className="max-w-[90%] min-w-0 px-4 py-3 chat-bubble-assistant text-zinc-100 rounded-2xl rounded-bl-md overflow-hidden">
         {hasParts ? (
           <>
             {message.parts.map((part, index) => {
@@ -434,11 +434,11 @@ export default function ChatMessage({ message, onCodifySkill, isCodifying }: Cha
             <MessageStats stats={message.stats} />
             {createdSkillName && <SkillArtifact skillName={createdSkillName} />}
             {skillSuggestion && skillSuggestion.status === 'success' && onCodifySkill && (
-              <div className="mt-3 pt-3 border-t border-zinc-700">
+              <div className="mt-3 pt-3 border-t border-white/10">
                 <button
                   onClick={() => onCodifySkill(skillSuggestion)}
                   disabled={isCodifying}
-                  className="flex items-center gap-2 px-3 py-1.5 text-sm text-white rounded-lg transition-colors disabled:bg-zinc-600 disabled:cursor-not-allowed bg-emerald-600 hover:bg-emerald-500"
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm text-white rounded-xl transition-all disabled:bg-zinc-600 disabled:cursor-not-allowed bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-400 hover:to-teal-400 shadow-lg shadow-cyan-500/20"
                 >
                   {isCodifying ? (
                     <>
