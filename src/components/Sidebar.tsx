@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import type { GroupedConversations, Conversation } from '@/hooks/useConversations';
 import type { SkillMeta } from '@/hooks/useSkills';
 import type { PinnedComparison } from '@/hooks/usePinnedComparisons';
@@ -243,14 +244,14 @@ function ConversationItem({
             </svg>
           </button>
 
-          {showMenu && (
+          {showMenu && createPortal(
             <>
               <div
-                className="fixed inset-0 z-10"
+                className="fixed inset-0 z-[9999]"
                 onClick={() => setShowMenu(false)}
               />
               <div
-                className="z-50 bg-zinc-800 border border-zinc-700 rounded-lg shadow-lg py-1 min-w-[120px]"
+                className="fixed z-[10000] bg-zinc-800 border border-zinc-700 rounded-lg shadow-lg py-1 min-w-[120px]"
                 style={menuStyle}
               >
                 <button
@@ -281,7 +282,8 @@ function ConversationItem({
                   Delete
                 </button>
               </div>
-            </>
+            </>,
+            document.body
           )}
         </div>
       )}
@@ -409,10 +411,10 @@ function SkillItem({
           </svg>
         </button>
 
-        {showMenu && (
+        {showMenu && createPortal(
           <>
             <div
-              className="fixed inset-0 z-10"
+              className="fixed inset-0 z-[9999]"
               onClick={(e) => {
                 e.stopPropagation();
                 setShowMenu(false);
@@ -420,7 +422,7 @@ function SkillItem({
               }}
             />
             <div
-              className="z-50 bg-zinc-800 border border-zinc-700 rounded-lg shadow-lg py-1 min-w-[120px]"
+              className="fixed z-[10000] bg-zinc-800 border border-zinc-700 rounded-lg shadow-lg py-1 min-w-[120px]"
               style={menuStyle}
             >
               {showDeleteConfirm ? (
@@ -462,7 +464,8 @@ function SkillItem({
                 </button>
               )}
             </div>
-          </>
+          </>,
+          document.body
         )}
       </div>
     </div>
@@ -564,11 +567,11 @@ function PinnedComparisonItem({
       </button>
 
       {/* Menu dropdown */}
-      {showMenu && (
+      {showMenu && createPortal(
         <>
-          <div className="fixed inset-0 z-10" onClick={(e) => { e.stopPropagation(); setShowMenu(false); }} />
+          <div className="fixed inset-0 z-[9999]" onClick={(e) => { e.stopPropagation(); setShowMenu(false); }} />
           <div
-            className="z-50 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl py-1 min-w-[120px]"
+            className="fixed z-[10000] bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl py-1 min-w-[120px]"
             style={menuStyle}
           >
             <button
@@ -585,7 +588,8 @@ function PinnedComparisonItem({
               Unpin
             </button>
           </div>
-        </>
+        </>,
+        document.body
       )}
     </div>
   );
@@ -628,7 +632,7 @@ export function Sidebar({
       {/* Toggle button (always visible) */}
       <button
         onClick={onToggle}
-        className={`fixed top-4 z-30 p-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 transition-all ${
+        className={`fixed top-4 z-30 p-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 backdrop-blur-md transition-all ${
           isOpen ? 'left-[216px]' : 'left-4'
         }`}
         aria-label={isOpen ? 'Close sidebar' : 'Open sidebar'}
@@ -659,7 +663,7 @@ export function Sidebar({
 
       {/* Sidebar */}
       <aside
-        className={`fixed left-0 top-0 h-full bg-zinc-900 border-r border-zinc-800 transition-all duration-200 z-20 ${
+        className={`fixed left-0 top-0 h-full backdrop-blur-xl border-r border-white/5 transition-all duration-200 z-20 ${
           isOpen ? 'w-64' : 'w-0 overflow-hidden'
         }`}
       >
@@ -668,10 +672,10 @@ export function Sidebar({
           <div className="px-3 mb-4 flex-shrink-0">
             <button
               onClick={onNew}
-              className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 transition-colors"
+              className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg bg-gradient-to-r from-cyan-500/20 to-teal-500/20 hover:from-cyan-500/30 hover:to-teal-500/30 border border-cyan-500/30 hover:border-cyan-400/50 transition-all group"
             >
               <svg
-                className="w-4 h-4 text-zinc-300"
+                className="w-4 h-4 text-cyan-400 group-hover:text-cyan-300 transition-colors"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -683,7 +687,7 @@ export function Sidebar({
                   d="M12 4v16m8-8H4"
                 />
               </svg>
-              <span className="text-sm text-zinc-200">New chat</span>
+              <span className="text-sm text-cyan-100 group-hover:text-white transition-colors">New task</span>
             </button>
           </div>
 
@@ -781,7 +785,7 @@ export function Sidebar({
           {/* Pinned Comparisons Section */}
           {pinnedComparisons && pinnedComparisons.length > 0 && (
             <>
-              <div className="border-t border-zinc-800 mx-2 mt-2" />
+              <div className="border-t border-white/5 mx-2 mt-2" />
               <CollapsibleSection
                 title="Pinned Comparisons"
                 count={pinnedComparisons.length}
@@ -806,7 +810,7 @@ export function Sidebar({
           <div className="flex-1 min-h-0" />
 
           {/* Divider */}
-          <div className="border-t border-zinc-800 mx-2" />
+          <div className="border-t border-white/5 mx-2" />
 
           {/* Skills Section (pinned at bottom, grows up) */}
           <CollapsibleSection
@@ -839,7 +843,7 @@ export function Sidebar({
           </CollapsibleSection>
 
           {/* View System Prompt button (for judges) */}
-          <div className="px-3 py-3 border-t border-zinc-800 flex-shrink-0">
+          <div className="px-3 py-3 border-t border-white/5 flex-shrink-0">
             <button
               onClick={onShowSystemPrompt}
               className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition-colors"

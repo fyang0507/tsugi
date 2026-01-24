@@ -42,6 +42,7 @@ src/
 │   ├── task/               # Task execution page
 │   └── page.tsx            # Main chat UI
 ├── components/             # React components (ChatMessage, Sidebar, etc.)
+│   └── landing/            # Landing page (Hero, HowItWorks, VisualizationDemo, etc.)
 ├── hooks/                  # useForgeChat, useConversations, useSkills
 └── lib/
     ├── agent/              # Core agent logic
@@ -62,6 +63,11 @@ MEMORY/                     # Plans, changelogs, progress tracking
 - Next.js + React frontend with SSE streaming
 - Gemini API with KV caching and built-in grounding (`googleSearch`, `urlContext`)
 - SQLite (Turso) for conversations + skills metadata
+- framer-motion for animations, lucide-react for icons
+
+## Design System
+
+Dark mode with aurora/gradient accents (cyan → purple → pink). Glass-morphism cards, framer-motion animations.
 
 ## Testing
 

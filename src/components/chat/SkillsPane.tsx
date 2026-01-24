@@ -20,14 +20,14 @@ function SkillCard({
   return (
     <div
       onClick={onSelect}
-      className="p-4 bg-zinc-800/50 border border-purple-500/20 rounded-xl cursor-pointer hover:border-purple-500/40 hover:bg-zinc-800 transition-all animate-slideUp"
+      className="p-4 bg-white/[0.02] border border-teal-500/15 rounded-xl cursor-pointer hover:border-teal-500/30 hover:bg-teal-500/5 transition-all animate-slideUp"
       style={{ animationDelay: `${index * 100}ms` }}
     >
       <div className="flex items-start gap-3">
         {/* Skill icon */}
-        <div className="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center flex-shrink-0">
+        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-cyan-500/20 to-teal-500/20 border border-teal-500/30 flex items-center justify-center flex-shrink-0">
           <svg
-            className="w-4 h-4 text-purple-400"
+            className="w-4 h-4 text-teal-400"
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -43,7 +43,7 @@ function SkillCard({
 
         {/* Content */}
         <div className="flex-1 min-w-0">
-          <div className="text-sm font-medium text-purple-300 truncate">
+          <div className="text-sm font-medium text-teal-300 truncate">
             {skill.name}
           </div>
           {skill.description && (
@@ -59,9 +59,9 @@ function SkillCard({
 
 export function SkillsPane({ skills, loading, onSelectSkill }: SkillsPaneProps) {
   return (
-    <div className="flex flex-col h-full border-2 border-purple-500/30 bg-purple-500/5 rounded-xl">
+    <div className="flex flex-col h-full border border-teal-500/20 bg-white/[0.02] rounded-2xl">
       {/* Header */}
-      <div className="flex-shrink-0 px-4 py-2 border-b border-zinc-800 text-purple-400 text-sm font-medium">
+      <div className="flex-shrink-0 px-4 py-2.5 border-b border-white/5 text-teal-400 text-sm font-medium">
         Skills Created
       </div>
 
@@ -69,13 +69,13 @@ export function SkillsPane({ skills, loading, onSelectSkill }: SkillsPaneProps) 
       <div className="flex-1 overflow-y-auto p-4">
         {loading ? (
           <div className="flex items-center justify-center py-8">
-            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-purple-400" />
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-teal-400" />
           </div>
         ) : skills.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-8 text-center">
-            <div className="w-12 h-12 mb-4 rounded-full bg-zinc-800 flex items-center justify-center">
+            <div className="w-12 h-12 mb-4 rounded-full bg-gradient-to-br from-cyan-500/20 to-teal-500/20 border border-teal-500/30 flex items-center justify-center">
               <svg
-                className="w-6 h-6 text-purple-400/50"
+                className="w-6 h-6 text-teal-400/50"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"

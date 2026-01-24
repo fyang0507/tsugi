@@ -41,16 +41,18 @@ export function DropZone({
 
   const colorClasses = {
     amber: {
-      border: isDragOver ? 'border-amber-500' : 'border-amber-500/30',
-      bg: isDragOver ? 'bg-amber-500/10' : 'bg-amber-500/5',
-      text: 'text-amber-400',
+      border: isDragOver ? 'border-cyan-400/50' : 'border-cyan-500/20',
+      bg: isDragOver ? 'bg-cyan-500/5' : 'bg-white/[0.02]',
+      text: 'text-cyan-400',
       label: 'Run 1 (Learning)',
+      icon: 'from-cyan-500/15 to-teal-500/15 border-cyan-500/20',
     },
     emerald: {
-      border: isDragOver ? 'border-emerald-500' : 'border-emerald-500/30',
-      bg: isDragOver ? 'bg-emerald-500/10' : 'bg-emerald-500/5',
-      text: 'text-emerald-400',
+      border: isDragOver ? 'border-teal-400/50' : 'border-teal-500/20',
+      bg: isDragOver ? 'bg-teal-500/5' : 'bg-white/[0.02]',
+      text: 'text-teal-400',
       label: 'Run 2 (Efficiency)',
+      icon: 'from-teal-500/15 to-cyan-500/15 border-teal-500/20',
     },
   };
 
@@ -59,12 +61,12 @@ export function DropZone({
   if (!isEmpty) {
     return (
       <div
-        className={`flex flex-col h-full w-full min-w-0 max-w-full border-2 rounded-xl transition-colors overflow-hidden ${colors.border} ${colors.bg}`}
+        className={`flex flex-col h-full w-full min-w-0 max-w-full border rounded-2xl transition-all overflow-hidden ${colors.border} ${colors.bg}`}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
       >
-        <div className={`flex-shrink-0 px-4 py-2 border-b border-zinc-800 ${colors.text} text-sm font-medium`}>
+        <div className={`flex-shrink-0 px-4 py-2.5 border-b border-white/5 ${colors.text} text-sm font-medium`}>
           {colors.label}
         </div>
         <div className="flex-1 w-full min-w-0 max-w-full overflow-y-auto overflow-x-hidden">
@@ -76,15 +78,15 @@ export function DropZone({
 
   return (
     <div
-      className={`flex flex-col items-center justify-center h-full border-2 border-dashed rounded-xl transition-all cursor-pointer ${colors.border} ${colors.bg}`}
+      className={`flex flex-col items-center justify-center h-full border-2 border-dashed rounded-2xl transition-all cursor-pointer ${colors.border} ${colors.bg}`}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
       data-testid={`dropzone-${position}`}
     >
-      <div className={`w-12 h-12 mb-4 rounded-full bg-zinc-800 flex items-center justify-center ${isDragOver ? 'scale-110' : ''} transition-transform`}>
+      <div className={`w-14 h-14 mb-4 rounded-full bg-gradient-to-br ${colors.icon} border flex items-center justify-center ${isDragOver ? 'scale-110' : ''} transition-transform`}>
         <svg
-          className={`w-6 h-6 ${colors.text}`}
+          className={`w-7 h-7 ${colors.text}`}
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"

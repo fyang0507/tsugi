@@ -45,9 +45,9 @@ function MetricItem({
             <AnimatedCounter
               value={Math.abs(saved)}
               formatFn={formatFn}
-              className={`text-lg font-semibold ${isPositive ? 'text-green-400' : 'text-red-400'}`}
+              className={`text-lg font-semibold ${isPositive ? 'text-cyan-400' : 'text-red-400'}`}
             />
-            <span className={`text-xs ${isPositive ? 'text-green-500' : 'text-red-500'}`}>
+            <span className={`text-xs ${isPositive ? 'text-teal-500' : 'text-red-500'}`}>
               {isPositive ? '-' : '+'}{Math.abs(percentChange).toFixed(0)}%
             </span>
           </>
@@ -63,7 +63,7 @@ export function MetricsBar({ leftStats, rightStats }: MetricsBarProps) {
   // Only show metrics when both conversations have stats
   if (!leftStats || !rightStats) {
     return (
-      <div className="px-6 py-4 bg-zinc-900 border-t border-zinc-800">
+      <div className="px-6 py-4 relative z-10">
         <div className="flex items-center justify-center text-sm text-zinc-500">
           {!leftStats && !rightStats
             ? 'Select conversations to compare metrics'
@@ -76,7 +76,7 @@ export function MetricsBar({ leftStats, rightStats }: MetricsBarProps) {
   // Only show if both have at least one message
   if (leftStats.messageCount === 0 || rightStats.messageCount === 0) {
     return (
-      <div className="px-6 py-4 bg-zinc-900 border-t border-zinc-800">
+      <div className="px-6 py-4 relative z-10">
         <div className="flex items-center justify-center text-sm text-zinc-500">
           Both conversations need messages to compare
         </div>
@@ -90,7 +90,7 @@ export function MetricsBar({ leftStats, rightStats }: MetricsBarProps) {
     : 0;
 
   return (
-    <div className="px-6 py-4 bg-zinc-900 border-t border-zinc-800">
+    <div className="px-6 py-4 relative z-10">
       <div className="flex items-center justify-center gap-8">
         {/* Time saved - special formatting */}
         <div className="flex flex-col items-center px-4">
@@ -101,9 +101,9 @@ export function MetricsBar({ leftStats, rightStats }: MetricsBarProps) {
                 <AnimatedCounter
                   value={Math.abs(timeSaved)}
                   formatFn={formatTime}
-                  className={`text-lg font-semibold ${timeSaved > 0 ? 'text-green-400' : 'text-red-400'}`}
+                  className={`text-lg font-semibold ${timeSaved > 0 ? 'text-cyan-400' : 'text-red-400'}`}
                 />
-                <span className={`text-xs ${timeSaved > 0 ? 'text-green-500' : 'text-red-500'}`}>
+                <span className={`text-xs ${timeSaved > 0 ? 'text-teal-500' : 'text-red-500'}`}>
                   {timeSaved > 0 ? '-' : '+'}{Math.abs(timeSavedPercent).toFixed(0)}%
                 </span>
               </>
@@ -113,7 +113,7 @@ export function MetricsBar({ leftStats, rightStats }: MetricsBarProps) {
           </div>
         </div>
 
-        <div className="w-px h-8 bg-zinc-700" />
+        <div className="w-px h-8 bg-white/10" />
 
         <MetricItem
           label="Input Tokens"

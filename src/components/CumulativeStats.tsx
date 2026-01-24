@@ -18,7 +18,7 @@ export function CumulativeStatsBar({ stats }: CumulativeStatsBarProps) {
   const someUnavailable = stats.tokensUnavailableCount > 0 && !allUnavailable;
 
   return (
-    <div className="px-6 py-2 bg-zinc-900 border-t border-zinc-800">
+    <div className="px-6 py-2 relative z-10">
       <div className="max-w-4xl mx-auto flex flex-wrap items-center justify-center gap-x-6 text-xs text-zinc-500">
         {allUnavailable ? (
           <span title="Token stats unavailable (observability service unreachable)">Tokens: —</span>

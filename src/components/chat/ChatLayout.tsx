@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { ComparisonPane } from './ComparisonPane';
 import { MetricsBar, ConversationStats } from './MetricsBar';
 
-interface DemoLayoutProps {
+interface ComparisonProps {
   leftConversationId: string | null;
   rightConversationId: string | null;
   onDropLeft: (id: string) => void;
@@ -14,7 +14,7 @@ interface DemoLayoutProps {
   onTitlesAvailable?: (leftTitle: string | null, rightTitle: string | null) => void;
 }
 
-export function DemoLayout({
+export function Comparison({
   leftConversationId,
   rightConversationId,
   onDropLeft,
@@ -22,7 +22,7 @@ export function DemoLayout({
   onClearLeft,
   onClearRight,
   onTitlesAvailable,
-}: DemoLayoutProps) {
+}: ComparisonProps) {
   const [leftStats, setLeftStats] = useState<ConversationStats | null>(null);
   const [rightStats, setRightStats] = useState<ConversationStats | null>(null);
   const [leftTitle, setLeftTitle] = useState<string | null>(null);

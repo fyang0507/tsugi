@@ -92,7 +92,7 @@ export function ComparisonPane({
         {!isEmpty && (
           <div className="flex flex-col h-full w-full min-w-0 overflow-hidden">
             {/* Header with title and clear button */}
-            <div className="flex items-center justify-between px-4 py-2 border-b border-zinc-800">
+            <div className="flex items-center justify-between px-4 py-2 border-b border-white/5">
               <span className="text-sm text-zinc-300 truncate">
                 {conversationData?.title || 'Loading...'}
               </span>
@@ -186,10 +186,10 @@ function PaneStats({
 
   if (stats.messageCount === 0) return null;
 
-  const colorClass = accentColor === 'amber' ? 'text-amber-500' : 'text-emerald-500';
+  const colorClass = accentColor === 'amber' ? 'text-cyan-400' : 'text-teal-400';
 
   return (
-    <div className="flex-shrink-0 px-4 py-2 border-t border-zinc-800 bg-zinc-900/50">
+    <div className="flex-shrink-0 px-4 py-2 border-t border-white/5">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-zinc-500">
         <span>
           <span className={colorClass}>{(stats.totalExecutionTimeMs / 1000).toFixed(1)}s</span> time
