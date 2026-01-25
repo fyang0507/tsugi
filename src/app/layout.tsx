@@ -25,6 +25,9 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "tsugi | Explore once. Exploit next.",
   description: "An agent harness that turns trial-and-error into reusable skills.",
+  icons: {
+    icon: "/favicon-light.png",
+  },
 };
 
 export default function RootLayout({

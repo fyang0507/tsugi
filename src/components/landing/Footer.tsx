@@ -9,7 +9,7 @@ export const Footer: React.FC = () => {
     <footer className="py-12 px-6 relative z-10">
       <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-8">
         <div className="flex flex-col items-center md:items-start gap-4">
-          <Logo className="h-6" />
+          <Logo className="h-10" />
           <p className="text-zinc-500 text-sm">
             Explore once. Exploit next.
           </p>

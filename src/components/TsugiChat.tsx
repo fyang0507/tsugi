@@ -620,7 +620,7 @@ export default function TsugiChat() {
         <header className="flex-shrink-0 py-4 relative z-10">
           <div className={`w-full ${isComparisonMode ? 'px-6' : 'max-w-4xl px-6'} mx-auto flex items-center justify-between`}>
             <div className={`transition-all ${sidebarOpen ? '' : 'ml-8'}`}>
-              <Logo className="h-7" />
+              <Logo className="h-10" />
               <p className="text-sm text-zinc-400 mt-1">
                 Explore once. Exploit next.
               </p>
