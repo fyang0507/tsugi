@@ -852,7 +852,7 @@ export default function TsugiChat() {
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  placeholder="Ask me to learn from a YouTube video or search skills..."
+                  placeholder="Any anything..."
                   rows={1}
                   className="w-full px-4 py-3 bg-zinc-900/50 border border-white/10 rounded-xl text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/30 resize-none overflow-y-auto transition-all"
                   style={{
