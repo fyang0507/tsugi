@@ -84,4 +84,4 @@ Attached 4 tasks for testing/demo purposes in `playground/`
 
 ## Project Memory
 
-`MEMORY/` directory holds plans, changelogs, and completed issues. Check `MEMORY/changelog.md` for recent updates.
+`MEMORY/` directory holds `plan/`, `progress/` for planned and compeleted issues, check `changelog.md` for recent updates.
