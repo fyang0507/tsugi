@@ -210,17 +210,16 @@ export default function TsugiChat() {
   const [codifyingMessageId, setCodifyingMessageId] = useState<string | null>(null);
   const [selectedSkill, setSelectedSkill] = useState<SkillDetail | null>(null);
   const [showSystemPrompt, setShowSystemPrompt] = useState(false);
-  const [envVars, setEnvVars] = useState<Array<{ key: string; value: string }>>(() => {
-    // Load LLM API key from sessionStorage (set during onboarding, clears on tab close)
-    // Note: This runs only on client since 'use client' ensures CSR
-    if (typeof window !== 'undefined') {
-      const savedKey = sessionStorage.getItem(LLM_API_KEY_STORAGE);
-      if (savedKey) {
-        return [{ key: 'GOOGLE_GENERATIVE_AI_API_KEY', value: savedKey }];
-      }
+  const [envVars, setEnvVars] = useState<Array<{ key: string; value: string }>>([]);
+
+  // Load LLM API key from sessionStorage after hydration (avoids SSR mismatch)
+  useEffect(() => {
+    const savedKey = sessionStorage.getItem(LLM_API_KEY_STORAGE);
+    if (savedKey) {
+      setEnvVars([{ key: 'GOOGLE_GENERATIVE_AI_API_KEY', value: savedKey }]);
     }
-    return [];
-  });
+  }, []);
+
   const [envPanelOpen, setEnvPanelOpen] = useState(false);
   const [newEnvKey, setNewEnvKey] = useState('');
   const [newEnvValue, setNewEnvValue] = useState('');
