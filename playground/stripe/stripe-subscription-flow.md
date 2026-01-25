@@ -1,8 +1,14 @@
 ---
-name: stripe-subscription-hard
+name: r1-stripe-subscription-flow
 description: Set up a recurring subscription from scratch using Stripe API
 ---
 
-Create a working active $69.99/month subscription (G3-hackathon-pack) for a customer (Bob) using the Stripe API.
+
+# Run 1
+Create a working active $19.99/month subscription (gemini-hackathon-pack) for a Alice using the Stripe API.
 Auth: Bearer token STRIPE_SECRET_KEY already loaded as env var.
-Success criteria: A subscription with status "active" for email "bob@company.com"
+Success criteria: A subscription with status "active" for email "alice@example.com"
+
+
+# Run 2
+Create a working active $69.99/yr subscription (r2) for Cindy on Stripe.
