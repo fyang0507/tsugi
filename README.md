@@ -10,12 +10,9 @@
   <strong>"Explore once. Exploit next."</strong>
 </p>
 
----
-
 <p align="center">
-  Tsugi is an agentic harness where AI agents learn from trial-and-error execution and codify learnings into reusable skills.
+  An agentic harness where agents learn from trial-and-error execution and codify learnings into reusable skills.
 </p>
-
 
 <p align="center">
   <img src="https://img.shields.io/badge/Deployed%20on-Vercel-black?style=flat&logo=vercel" alt="Deployed on Vercel" />
@@ -26,10 +23,18 @@
   <img src="https://img.shields.io/badge/License-MIT-green?style=flat" alt="License MIT" />
 </p>
 
-- **Run 1**: Research + Task Execution + Skill Creation
-- **Run 2**: Skill Lookup + Skip Research (5-6x faster)
+## Why Tsugi?
+
+Most agent memory stores facts. Most agent skills are static. Tsugi brings the best from the two worlds.
+
+<p align="center">
+  <img src="public/infographics.png" alt="Tsugi positioning: evolving experiential knowledge" width="400" />
+</p>
 
 ## What It Does
+
+- **Run 1**: Research + Task Execution + Skill Creation
+- **Run 2**: Skill Lookup + Skip Research (faster and token saving)
 
 Tsugi captures procedural knowledge from successful task executions and saves them as reusable skills. When you ask an agent to integrate with a new API, it researches, experiments, handles errors, and eventually succeeds. That hard-won knowledge gets codified into a skill that makes the next execution instant.
 
