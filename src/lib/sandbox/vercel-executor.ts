@@ -48,7 +48,26 @@ export class VercelSandboxExecutor implements SandboxExecutor {
 
       if (this.existingSandboxId) {
         // Reconnect to existing sandbox (cross-request sharing)
-        this.sandbox = await Sandbox.get({ sandboxId: this.existingSandboxId });
+        try {
+          this.sandbox = await Sandbox.get({ sandboxId: this.existingSandboxId });
+
+          // Health check: verify sandbox is actually alive
+          const healthCheck = await this.sandbox.runCommand({
+            cmd: 'echo',
+            args: ['ok'],
+          });
+          if (healthCheck.exitCode !== 0) {
+            throw new Error('Health check failed');
+          }
+        } catch (error) {
+          // Sandbox is dead, create a new one instead
+          console.log('[Sandbox] Reconnect failed, creating new sandbox:', error);
+          this.existingSandboxId = null;
+          this.sandbox = await Sandbox.create({
+            runtime: 'python3.13',
+            timeout: IDLE_TIMEOUT_MS,
+          });
+        }
       } else {
         // Create new sandbox
         this.sandbox = await Sandbox.create({

@@ -1,6 +1,12 @@
 # Changelog
 
-Last Updated: 2026-01-21
+Last Updated: 2026-01-25
+
+## 2026-01-25: Sandbox Lifecycle Fix
+
+- **Health check on reconnect**: Vercel executor now runs `echo ok` after `Sandbox.get()` to verify sandbox is alive; falls back to creating new sandbox if health check fails
+- **SSE event rename**: Changed `sandbox_created` → `sandbox_active` | `sandbox_terminated` for clearer lifecycle semantics; emits `sandbox_terminated` on abort cleanup
+- **UI status indicator**: New `SandboxStatusIndicator` component shows green/gray dot in footer stats bar indicating sandbox connection state
 
 ## 2026-01-21: Inline Skill Artifacts
 

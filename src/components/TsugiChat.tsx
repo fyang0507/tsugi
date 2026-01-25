@@ -332,7 +332,7 @@ export default function TsugiChat() {
     },
   }), [loadedMessages, saveMessage, renameConversation]);
 
-  const { messages, status, error, cumulativeStats, sendMessage, clearMessages, stop, sandboxTimeoutMessage, clearSandboxTimeout } = useForgeChat(forgeChatOptions);
+  const { messages, status, error, cumulativeStats, sendMessage, clearMessages, stop, sandboxTimeoutMessage, clearSandboxTimeout, sandboxStatus } = useForgeChat(forgeChatOptions);
 
   const isStreaming = status === 'streaming';
 
@@ -790,7 +790,7 @@ export default function TsugiChat() {
             </div>
 
             {/* Cumulative stats footer */}
-            <CumulativeStatsBar stats={cumulativeStats} />
+            <CumulativeStatsBar stats={cumulativeStats} sandboxStatus={sandboxStatus} />
 
             {/* Input area */}
             <div className="flex-shrink-0 px-6 py-4 relative z-10">

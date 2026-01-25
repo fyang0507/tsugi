@@ -53,9 +53,10 @@ export interface Message {
 }
 
 export type ChatStatus = 'ready' | 'streaming' | 'error';
+export type SandboxStatus = 'disconnected' | 'connected';
 
 interface SSEEvent {
-  type: 'text' | 'reasoning' | 'tool-call' | 'tool-start' | 'tool-result' | 'agent-tool-call' | 'agent-tool-result' | 'source' | 'iteration-end' | 'done' | 'error' | 'usage' | 'raw-content' | 'tool-output' | 'sandbox_timeout' | 'sandbox_created' | 'raw_payload';
+  type: 'text' | 'reasoning' | 'tool-call' | 'tool-start' | 'tool-result' | 'agent-tool-call' | 'agent-tool-result' | 'source' | 'iteration-end' | 'done' | 'error' | 'usage' | 'raw-content' | 'tool-output' | 'sandbox_timeout' | 'sandbox_active' | 'sandbox_terminated' | 'raw_payload';
   content?: string;
   command?: string;
   commandId?: string;  // Unique identifier for command tracking
@@ -103,6 +104,7 @@ export function useForgeChat(options?: UseForgeChatOptions) {
   const [error, setError] = useState<string | null>(null);
   const [sandboxTimeoutMessage, setSandboxTimeoutMessage] = useState<string | null>(null);
   const [currentSandboxId, setCurrentSandboxId] = useState<string | null>(null);
+  const [sandboxStatus, setSandboxStatus] = useState<SandboxStatus>('disconnected');
   const [cumulativeStats, setCumulativeStats] = useState<CumulativeStats>({
     totalPromptTokens: 0,
     totalCompletionTokens: 0,
@@ -119,6 +121,8 @@ export function useForgeChat(options?: UseForgeChatOptions) {
   useEffect(() => {
     if (options?.initialMessages) {
       setMessages(options.initialMessages);
+      setCurrentSandboxId(null); // Clear sandbox on conversation switch
+      setSandboxStatus('disconnected');
       // Recalculate cumulative stats from loaded messages
       const stats = options.initialMessages.reduce(
         (acc, m) => {
@@ -486,13 +490,20 @@ export function useForgeChat(options?: UseForgeChatOptions) {
 
               case 'sandbox_timeout':
                 setSandboxTimeoutMessage(event.content || 'Sandbox timed out due to inactivity.');
-                setCurrentSandboxId(null); // Clear sandbox ID on timeout
+                setCurrentSandboxId(null);
+                setSandboxStatus('disconnected');
                 break;
 
-              case 'sandbox_created':
+              case 'sandbox_active':
                 if (event.sandboxId) {
                   setCurrentSandboxId(event.sandboxId);
+                  setSandboxStatus('connected');
                 }
+                break;
+
+              case 'sandbox_terminated':
+                setCurrentSandboxId(null);
+                setSandboxStatus('disconnected');
                 break;
 
               case 'error':
@@ -527,7 +538,8 @@ export function useForgeChat(options?: UseForgeChatOptions) {
     setMessages([]);
     setError(null);
     setStatus('ready');
-    setCurrentSandboxId(null); // Clear sandbox ID when conversation is cleared
+    setCurrentSandboxId(null);
+    setSandboxStatus('disconnected');
     setCumulativeStats({
       totalPromptTokens: 0,
       totalCompletionTokens: 0,
@@ -564,5 +576,6 @@ export function useForgeChat(options?: UseForgeChatOptions) {
     clearSandboxTimeout,
     currentSandboxId,
     setCurrentSandboxId,
+    sandboxStatus,
   };
 }

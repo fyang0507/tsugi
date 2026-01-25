@@ -10,7 +10,7 @@ import { fetchTraceStats } from '@/lib/braintrust-api';
 type AgentMode = 'task' | 'codify-skill';
 
 interface SSEEvent {
-  type: 'text' | 'reasoning' | 'tool-call' | 'tool-start' | 'tool-result' | 'agent-tool-call' | 'agent-tool-result' | 'source' | 'iteration-end' | 'done' | 'error' | 'usage' | 'raw-content' | 'tool-output' | 'sandbox_timeout' | 'sandbox_created' | 'raw_payload';
+  type: 'text' | 'reasoning' | 'tool-call' | 'tool-start' | 'tool-result' | 'agent-tool-call' | 'agent-tool-result' | 'source' | 'iteration-end' | 'done' | 'error' | 'usage' | 'raw-content' | 'tool-output' | 'sandbox_timeout' | 'sandbox_active' | 'sandbox_terminated' | 'raw_payload';
   sandboxId?: string;
   content?: string;
   command?: string;
@@ -190,11 +190,13 @@ export async function POST(req: Request) {
               if (command && !command.startsWith('skill ')) {
                 sandboxUsed = true;
               }
-              // Emit sandbox_created on first shell use when no sandboxId was provided
-              if (!sandboxIdEmitted && !requestSandboxId && sandboxUsed) {
+              // Emit sandbox_active when:
+              // 1. No sandboxId was provided (new sandbox created)
+              // 2. Provided sandboxId differs from actual (reconnect failed, new sandbox created)
+              if (!sandboxIdEmitted && sandboxUsed) {
                 const currentSandboxId = executor.getSandboxId();
-                if (currentSandboxId) {
-                  send({ type: 'sandbox_created', sandboxId: currentSandboxId });
+                if (currentSandboxId && currentSandboxId !== requestSandboxId) {
+                  send({ type: 'sandbox_active', sandboxId: currentSandboxId });
                   sandboxIdEmitted = true;
                 }
               }
@@ -323,6 +325,7 @@ export async function POST(req: Request) {
       if (aborted && sandboxUsed && process.env.VERCEL === '1') {
         try {
           await clearSandboxExecutor();
+          send({ type: 'sandbox_terminated', content: 'User aborted' });
           console.log('[Agent] Sandbox cleaned up after abort');
         } catch (cleanupError) {
           console.error('[Agent] Failed to cleanup sandbox:', cleanupError);
