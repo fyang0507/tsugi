@@ -9,7 +9,7 @@ import { getGenerateText } from '../braintrust-wrapper';
  * and custom tools cannot coexist in the same agent.
  */
 export const searchTool = {
-  description: `Search the web. Appropriate uses: get specific piece of information, research HOW to accomplish tasks programmatically. Avoid using search as a data-fetching mechanism for repetitive lookups.`,
+  description: `Search the web. Appropriate uses: get specific piece of information, research HOW to accomplish tasks programmatically. NEVER use search as a data-fetching mechanism for repetitive lookups.`,
   inputSchema: z.object({
     query: z.string().describe('The search query'),
   }),
@@ -19,7 +19,7 @@ export const searchTool = {
       const result = await generateText({
         model: getFlashModel(),
         tools: { googleSearch: google.tools.googleSearch({}) },
-        prompt: `Search the web for: "${query}. Return a concise list of summary of relevant results with grounding urls. Focus on breadth of information."`,
+        prompt: `Search the web for: "${query}". Return a concise list of summary of relevant results with the most specific urls. Focus on breadth of information.`,
       });
       return result.text || 'No results found.';
     } catch (error) {
