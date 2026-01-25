@@ -226,6 +226,45 @@ export default function TsugiChat() {
   const [newEnvKey, setNewEnvKey] = useState('');
   const [newEnvValue, setNewEnvValue] = useState('');
 
+  // Smart paste handler for env vars - parses KEY=value format, multiline, comments, quotes
+  const handleEnvPaste = useCallback((e: React.ClipboardEvent<HTMLInputElement>) => {
+    const text = e.clipboardData.getData('text');
+    const lines = text.split('\n');
+    const parsed: Array<{ key: string; value: string }> = [];
+    for (const line of lines) {
+      const trimmed = line.trim();
+      // Skip empty lines and comments
+      if (!trimmed || trimmed.startsWith('#')) continue;
+      // Match KEY=value pattern
+      const match = trimmed.match(/^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/);
+      if (match) {
+        let value = match[2];
+        // Strip surrounding quotes if present
+        if ((value.startsWith('"') && value.endsWith('"')) ||
+            (value.startsWith("'") && value.endsWith("'"))) {
+          value = value.slice(1, -1);
+        }
+        parsed.push({ key: match[1].toUpperCase(), value });
+      }
+    }
+    if (parsed.length > 1) {
+      // Multiple vars: merge with existing, overriding duplicates
+      e.preventDefault();
+      setEnvVars(prev => {
+        const merged = new Map(prev.map(v => [v.key, v.value]));
+        for (const { key, value } of parsed) {
+          merged.set(key, value);
+        }
+        return Array.from(merged, ([key, value]) => ({ key, value }));
+      });
+    } else if (parsed.length === 1) {
+      // Single var: populate the form fields
+      e.preventDefault();
+      setNewEnvKey(parsed[0].key);
+      setNewEnvValue(parsed[0].value);
+    }
+  }, []);
+
   // Comparison mode state
   const [isComparisonMode, setIsComparisonMode] = useState(false);
   const [leftConversationId, setLeftConversationId] = useState<string | null>(null);
@@ -815,6 +854,7 @@ export default function TsugiChat() {
                     type="text"
                     value={newEnvKey}
                     onChange={(e) => setNewEnvKey(e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, ''))}
+                    onPaste={handleEnvPaste}
                     placeholder="KEY"
                     className="flex-1 px-3 py-2 text-sm bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-zinc-600 font-mono"
                   />
@@ -822,6 +862,7 @@ export default function TsugiChat() {
                     type="password"
                     value={newEnvValue}
                     onChange={(e) => setNewEnvValue(e.target.value)}
+                    onPaste={handleEnvPaste}
                     placeholder="value"
                     className="flex-1 px-3 py-2 text-sm bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-zinc-600 font-mono"
                   />
@@ -829,7 +870,16 @@ export default function TsugiChat() {
                     type="button"
                     onClick={() => {
                       if (newEnvKey.trim() && newEnvValue.trim()) {
-                        setEnvVars([...envVars, { key: newEnvKey.trim(), value: newEnvValue }]);
+                        const key = newEnvKey.trim();
+                        const value = newEnvValue;
+                        // Override if key exists, otherwise append
+                        setEnvVars(prev => {
+                          const exists = prev.some(v => v.key === key);
+                          if (exists) {
+                            return prev.map(v => v.key === key ? { key, value } : v);
+                          }
+                          return [...prev, { key, value }];
+                        });
                         setNewEnvKey('');
                         setNewEnvValue('');
                       }
