@@ -9,6 +9,7 @@ import {
   type AgentIteration,
   type ToolStatus,
 } from '@/lib/messages/transform';
+import type { SSEEvent } from '@/lib/types/sse';
 
 // Re-export types for consumers that import from useForgeChat
 export type { MessageStats, AgentIteration, ToolStatus };
@@ -53,39 +54,6 @@ export interface CumulativeStats {
 export type ChatStatus = 'ready' | 'streaming' | 'error';
 export type SandboxStatus = 'disconnected' | 'connected';
 
-interface SSEEvent {
-  type: 'text' | 'reasoning' | 'tool-call' | 'tool-start' | 'tool-result' | 'agent-tool-call' | 'agent-tool-result' | 'source' | 'iteration-end' | 'done' | 'error' | 'usage' | 'raw-content' | 'tool-output' | 'sandbox_timeout' | 'sandbox_active' | 'sandbox_terminated' | 'raw_payload';
-  content?: string;
-  command?: string;
-  commandId?: string;  // Unique identifier for command tracking
-  result?: string;
-  hasMoreCommands?: boolean;
-  // For agent tool calls
-  toolName?: string;
-  toolArgs?: Record<string, unknown>;
-  toolCallId?: string;
-  // For source citations
-  sourceId?: string;
-  sourceUrl?: string;
-  sourceTitle?: string;
-  // For usage stats (null when Braintrust unavailable)
-  usage?: {
-    promptTokens?: number;
-    completionTokens?: number;
-    cachedContentTokenCount?: number;
-    reasoningTokens?: number;
-  } | null;
-  executionTimeMs?: number;
-  // For KV cache support
-  rawContent?: string;
-  toolOutput?: string;
-  // For sandbox sharing across requests
-  sandboxId?: string;
-  // Which agent generated this response
-  agent?: 'task' | 'skill';
-  // Raw stream parts from agent.stream() for debugging
-  rawPayload?: unknown[];
-}
 
 function generateId(): string {
   return Math.random().toString(36).substring(2, 15);

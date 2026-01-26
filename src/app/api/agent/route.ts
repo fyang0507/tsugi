@@ -6,40 +6,9 @@ import { mergePlaygroundEnv } from '@/lib/tools/playground-env';
 import { runWithRequestContext } from '@/lib/agent/request-context';
 import { traced, flush } from 'braintrust';
 import { fetchTraceStats } from '@/lib/braintrust-api';
+import type { SSEEvent } from '@/lib/types/sse';
 
 type AgentMode = 'task' | 'codify-skill';
-
-interface SSEEvent {
-  type: 'text' | 'reasoning' | 'tool-call' | 'tool-start' | 'tool-result' | 'agent-tool-call' | 'agent-tool-result' | 'source' | 'iteration-end' | 'done' | 'error' | 'usage' | 'raw-content' | 'tool-output' | 'sandbox_timeout' | 'sandbox_active' | 'sandbox_terminated' | 'raw_payload';
-  sandboxId?: string;
-  content?: string;
-  command?: string;
-  commandId?: string;  // Unique identifier for command tracking
-  result?: string;
-  hasMoreCommands?: boolean;
-  // For agent tool calls (google_search, url_context)
-  toolName?: string;
-  toolArgs?: Record<string, unknown>;
-  toolCallId?: string;
-  // For source citations (Gemini grounding)
-  sourceId?: string;
-  sourceUrl?: string;
-  sourceTitle?: string;
-  usage?: {
-    promptTokens?: number;
-    completionTokens?: number;
-    cachedContentTokenCount?: number;
-    reasoningTokens?: number;
-  } | null;
-  executionTimeMs?: number;
-  // For KV cache support
-  rawContent?: string;
-  toolOutput?: string;
-  // Which agent generated this response
-  agent?: 'task' | 'skill';
-  // Raw stream parts from agent.stream() for debugging
-  rawPayload?: unknown[];
-}
 
 function createSSEStream() {
   const encoder = new TextEncoder();
