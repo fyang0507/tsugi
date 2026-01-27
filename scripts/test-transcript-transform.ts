@@ -4,7 +4,7 @@
  * Usage: npx tsx scripts/test-transcript-transform.ts <conversationId>
  */
 import { getConversation } from '@/lib/db';
-import { toTranscriptString, type DBMessage } from '@/lib/messages/transform';
+import { toTranscriptString, type Message } from '@/lib/messages/transform';
 
 async function main() {
   const conversationId = process.argv[2];
@@ -25,7 +25,7 @@ async function main() {
   console.log('=== RAW DB MESSAGES ===');
   for (const msg of result.messages) {
     console.log(`Role: ${msg.role}`);
-    const dbMsg = msg as DBMessage;
+    const dbMsg = msg as Message;
     console.log(`Has iterations: ${!!msg.iterations}, count: ${msg.iterations?.length ?? 0}`);
     console.log(`Has parts: ${!!dbMsg.parts}, count: ${dbMsg.parts?.length ?? 0}`);
     if (dbMsg.parts) {
@@ -35,7 +35,7 @@ async function main() {
   }
 
   console.log('\n=== TRANSCRIPT OUTPUT ===');
-  const transcript = toTranscriptString(result.messages as DBMessage[]);
+  const transcript = toTranscriptString(result.messages as Message[]);
   console.log(transcript);
 
   console.log('\n=== VERIFICATION ===');

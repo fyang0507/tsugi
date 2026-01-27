@@ -1,86 +1,19 @@
 import { createTaskAgent } from '@/lib/agent/task-agent';
 import { createSkillAgent } from '@/lib/agent/skill-agent';
-import { toModelMessages, type APIMessage } from '@/lib/messages/transform';
+import { toModelMessages, type Message } from '@/lib/messages/transform';
 import { clearSandboxExecutor, getSandboxExecutor } from '@/lib/sandbox/executor';
 import { mergePlaygroundEnv } from '@/lib/tools/playground-env';
 import { runWithRequestContext } from '@/lib/agent/request-context';
 import { traced, flush } from 'braintrust';
 import { fetchTraceStats } from '@/lib/braintrust-api';
+import { createSSEStream, SSE_HEADERS } from '@/lib/sse';
 
 type AgentMode = 'task' | 'codify-skill';
-
-interface SSEEvent {
-  type: 'text' | 'reasoning' | 'tool-call' | 'tool-start' | 'tool-result' | 'agent-tool-call' | 'agent-tool-result' | 'source' | 'iteration-end' | 'done' | 'error' | 'usage' | 'raw-content' | 'tool-output' | 'sandbox_timeout' | 'sandbox_active' | 'sandbox_terminated' | 'raw_payload';
-  sandboxId?: string;
-  content?: string;
-  command?: string;
-  commandId?: string;  // Unique identifier for command tracking
-  result?: string;
-  hasMoreCommands?: boolean;
-  // For agent tool calls (google_search, url_context)
-  toolName?: string;
-  toolArgs?: Record<string, unknown>;
-  toolCallId?: string;
-  // For source citations (Gemini grounding)
-  sourceId?: string;
-  sourceUrl?: string;
-  sourceTitle?: string;
-  usage?: {
-    promptTokens?: number;
-    completionTokens?: number;
-    cachedContentTokenCount?: number;
-    reasoningTokens?: number;
-  } | null;
-  executionTimeMs?: number;
-  // For KV cache support
-  rawContent?: string;
-  toolOutput?: string;
-  // Which agent generated this response
-  agent?: 'task' | 'skill';
-  // Raw stream parts from agent.stream() for debugging
-  rawPayload?: unknown[];
-}
-
-function createSSEStream() {
-  const encoder = new TextEncoder();
-  let controller: ReadableStreamDefaultController<Uint8Array> | null = null;
-
-  const stream = new ReadableStream<Uint8Array>({
-    start(c) {
-      controller = c;
-    },
-  });
-
-  function send(event: SSEEvent) {
-    if (controller) {
-      try {
-        const data = `data: ${JSON.stringify(event)}\n\n`;
-        controller.enqueue(encoder.encode(data));
-      } catch {
-        // Controller already closed (client disconnected, etc.)
-        controller = null;
-      }
-    }
-  }
-
-  function close() {
-    if (controller) {
-      try {
-        controller.close();
-      } catch {
-        // Controller already closed (client disconnected, etc.)
-      }
-      controller = null;
-    }
-  }
-
-  return { stream, send, close };
-}
 
 
 export async function POST(req: Request) {
   const { messages: initialMessages, mode = 'task', conversationId, env: uiEnv, sandboxId: requestSandboxId } = await req.json() as {
-    messages: APIMessage[];
+    messages: Message[];
     mode?: AgentMode;
     conversationId?: string;
     env?: Record<string, string>;
@@ -124,12 +57,12 @@ export async function POST(req: Request) {
       // The skill agent gets a blank context and calls get_processed_transcript tool
       // Create agent per-request INSIDE request context so it picks up user-provided API key
       let agent;
-      let messages: APIMessage[];
+      let messages: Message[];
 
       if (mode === 'codify-skill') {
         agent = createSkillAgent();
-        // Minimal trigger message - agent instructions tell it to call get_processed_transcript first
-        messages = [{ role: 'user', content: 'Start' }];
+        // Use conversation history if provided (follow-up messages), otherwise trigger with 'Start'
+        messages = initialMessages.length > 0 ? [...initialMessages] : [{ role: 'user', rawContent: 'Start' }];
       } else {
         agent = createTaskAgent();
         messages = [...initialMessages];
@@ -337,10 +270,6 @@ export async function POST(req: Request) {
   })();
 
   return new Response(stream, {
-    headers: {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      Connection: 'keep-alive',
-    },
+    headers: SSE_HEADERS,
   });
 }

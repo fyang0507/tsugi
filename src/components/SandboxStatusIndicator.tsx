@@ -1,6 +1,6 @@
 'use client';
 
-import type { SandboxStatus } from '@/hooks/useForgeChat';
+import type { SandboxStatus } from '@/hooks/useTsugiChat';
 
 interface SandboxStatusIndicatorProps {
   status: SandboxStatus;

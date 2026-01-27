@@ -11,4 +11,4 @@ Success criteria: A subscription with status "active" for email "alice@example.c
 
 
 # Run 2
-Create a working active $69.99/yr subscription (r2) for Cindy on Stripe.
+Create a working active $69.99/yr subscription (g3-hackathon-v2) for cindy@g3hack.com on Stripe.

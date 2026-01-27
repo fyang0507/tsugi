@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useForgeChat, Message } from '@/hooks/useForgeChat';
+import { useTsugiChat, Message } from '@/hooks/useTsugiChat';
 import { useConversations } from '@/hooks/useConversations';
 import ChatMessage, { SkillSuggestion } from './ChatMessage';
 import { CumulativeStatsBar } from './CumulativeStats';
@@ -316,7 +316,7 @@ export default function TsugiChat() {
   }, [currentId]);
 
   // Memoize the options to prevent infinite re-renders
-  const forgeChatOptions = useMemo(() => ({
+  const tsugiCahtOptions = useMemo(() => ({
     initialMessages: loadedMessages,
     onMessageComplete: async (message: Message, index: number) => {
       const convId = currentIdRef.current;
@@ -332,7 +332,7 @@ export default function TsugiChat() {
     },
   }), [loadedMessages, saveMessage, renameConversation]);
 
-  const { messages, status, error, cumulativeStats, sendMessage, clearMessages, stop, sandboxTimeoutMessage, clearSandboxTimeout, sandboxStatus } = useForgeChat(forgeChatOptions);
+  const { messages, status, error, cumulativeStats, sendMessage, clearMessages, stop, sandboxTimeoutMessage, clearSandboxTimeout, sandboxStatus } = useTsugiChat(tsugiCahtOptions);
 
   const isStreaming = status === 'streaming';
 

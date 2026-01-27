@@ -210,6 +210,7 @@ function ConversationItem({
           onBlur={handleRename}
           onKeyDown={handleKeyDown}
           onClick={(e) => e.stopPropagation()}
+          onFocus={(e) => e.target.select()}
           className="flex-1 bg-zinc-600 text-zinc-100 text-sm px-1 py-0.5 rounded outline-none"
           autoFocus
         />
@@ -539,6 +540,7 @@ function PinnedComparisonItem({
             onChange={(e) => setEditName(e.target.value)}
             onBlur={handleRename}
             onKeyDown={handleKeyDown}
+            onFocus={(e) => e.target.select()}
             className="w-full px-1 py-0.5 text-sm bg-zinc-800 border border-zinc-600 rounded text-zinc-100 focus:outline-none focus:border-blue-500"
             autoFocus
             onClick={(e) => e.stopPropagation()}

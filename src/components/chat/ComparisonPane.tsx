@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { DropZone } from './DropZone';
 import type { ConversationStats } from './MetricsBar';
-import type { Message } from '@/hooks/useForgeChat';
+import type { Message } from '@/hooks/useTsugiChat';
 import ChatMessage from '../ChatMessage';
 
 interface ComparisonPaneProps {

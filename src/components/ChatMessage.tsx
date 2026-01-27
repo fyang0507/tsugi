@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Message, MessagePart } from '@/hooks/useForgeChat';
+import { Message, MessagePart } from '@/hooks/useTsugiChat';
 import { MessageStats } from './MessageStats';
 
 export interface SkillSuggestion {
@@ -348,14 +348,27 @@ function TextPart({ content }: { content: string }): React.ReactNode {
     return <CompleteBadge />;
   }
 
-  // Check if ends with COMPLETE on own line
+  // Check if ends with COMPLETE (on own line or at end of text)
   const lines = trimmed.split('\n');
   const lastLine = lines[lines.length - 1].trim();
+
+  // Case 1: COMPLETE on its own final line
   if (lastLine === 'COMPLETE' && lines.length > 1) {
     const textWithoutComplete = lines.slice(0, -1).join('\n').trim();
     return (
       <>
         {textWithoutComplete && <MarkdownContent>{textWithoutComplete}</MarkdownContent>}
+        <div className="mt-3"><CompleteBadge /></div>
+      </>
+    );
+  }
+
+  // Case 2: Text ending with ". COMPLETE" or similar on same line
+  if (lastLine.endsWith('. COMPLETE') || lastLine.endsWith('! COMPLETE') || lastLine.endsWith('? COMPLETE')) {
+    const textWithoutComplete = trimmed.slice(0, -' COMPLETE'.length);
+    return (
+      <>
+        <MarkdownContent>{textWithoutComplete}</MarkdownContent>
         <div className="mt-3"><CompleteBadge /></div>
       </>
     );

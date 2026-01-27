@@ -36,7 +36,7 @@ function detectCommandsWithIds(
   return detectedCommands;
 }
 
-// Simulates the MessagePart interface from useForgeChat.ts
+// Simulates the MessagePart interface from useTsugiChat.ts
 interface MessagePart {
   type: 'tool';
   command: string;

@@ -1,6 +1,6 @@
 'use client';
 
-import { CumulativeStats, SandboxStatus } from '@/hooks/useForgeChat';
+import { CumulativeStats, SandboxStatus } from '@/hooks/useTsugiChat';
 import { SandboxStatusIndicator } from './SandboxStatusIndicator';
 
 interface CumulativeStatsBarProps {

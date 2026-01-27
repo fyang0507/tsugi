@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import type { Message } from '@/hooks/useForgeChat';
+import type { Message } from '@/hooks/useTsugiChat';
 
 export interface Conversation {
   id: string;

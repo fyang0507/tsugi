@@ -1,6 +1,6 @@
 'use client';
 
-import { MessageStats as MessageStatsType } from '@/hooks/useForgeChat';
+import { MessageStats as MessageStatsType } from '@/hooks/useTsugiChat';
 
 interface MessageStatsProps {
   stats: MessageStatsType | undefined;

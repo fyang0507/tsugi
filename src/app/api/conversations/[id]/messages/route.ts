@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { initDb, saveMessage, getConversation } from '@/lib/db';
-import type { Message } from '@/hooks/useForgeChat';
+import type { Message } from '@/lib/messages/transform';
 
 // GET /api/conversations/[id]/messages - Get conversation with messages
 export async function GET(
@@ -39,7 +39,7 @@ export async function POST(
     const { id } = await params;
     const body = await request.json();
 
-    const message: Message = {
+    const message: Message & { id: string; timestamp: Date } = {
       ...body.message,
       timestamp: new Date(body.message.timestamp),
     };
