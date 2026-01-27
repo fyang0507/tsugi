@@ -165,10 +165,10 @@ export async function saveMessage(
   const client = getDb();
 
   // Content format differs by role
-  // Assistant messages store both iterations and parts to preserve full fidelity
+  // Assistant messages store parts (single source of truth)
   const content = message.role === 'user'
     ? message.rawContent
-    : JSON.stringify({ iterations: message.iterations || [], parts: message.parts || [] });
+    : JSON.stringify({ parts: message.parts || [] });
 
   const metadata = message.stats ? JSON.stringify({ stats: message.stats }) : null;
 
@@ -210,7 +210,6 @@ export function hydrateMessage(row: DbMessage): Message {
       id: row.id,
       role: row.role,
       rawContent: row.content,
-      iterations: undefined,
       parts: [{ type: 'text', content: row.content }],
       timestamp: new Date(row.timestamp),
       stats: metadata.stats,
@@ -219,13 +218,12 @@ export function hydrateMessage(row: DbMessage): Message {
     };
   }
 
-  const { iterations, parts } = JSON.parse(row.content);
+  const { parts } = JSON.parse(row.content);
 
   return {
     id: row.id,
     role: row.role,
     rawContent: '',
-    iterations,
     parts,
     timestamp: new Date(row.timestamp),
     stats: metadata.stats,

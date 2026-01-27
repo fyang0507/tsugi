@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { partsToIteration, type MessageStats, type AgentIteration } from '@/lib/messages/transform';
+import type { MessageStats } from '@/lib/messages/transform';
 import type { SSEEvent } from '@/lib/types/sse';
 import type {
   Message,
@@ -32,7 +32,6 @@ export type {
   SandboxStatus,
   UseForgeChatOptions,
   MessageStats,
-  AgentIteration,
 };
 export type { ToolStatus } from '@/lib/messages/transform';
 
@@ -45,7 +44,6 @@ export function useForgeChat(options?: UseForgeChatOptions) {
   const [sandboxStatus, setSandboxStatus] = useState<SandboxStatus>('disconnected');
   const [cumulativeStats, setCumulativeStats] = useState<CumulativeStats>(createEmptyStats());
   const abortControllerRef = useRef<AbortController | null>(null);
-  const iterationsRef = useRef<AgentIteration[]>([]);
 
   // Reset messages when initialMessages changes (conversation switch)
   useEffect(() => {
@@ -67,7 +65,6 @@ export function useForgeChat(options?: UseForgeChatOptions) {
 
     setStatus('streaming');
     setError(null);
-    iterationsRef.current = [];
 
     const messageAgent = mode === 'codify-skill' ? 'skill' : 'task';
     const userMessage = createUserMessage(content, messageAgent);
@@ -84,7 +81,6 @@ export function useForgeChat(options?: UseForgeChatOptions) {
       role: m.role,
       rawContent: m.rawContent,
       parts: m.parts,
-      iterations: m.iterations,
     }));
 
     setMessages((prev) => [...prev, userMessage]);
@@ -261,20 +257,6 @@ export function useForgeChat(options?: UseForgeChatOptions) {
                 messageRawPayload = event.rawPayload;
                 break;
 
-              case 'raw-content':
-                iterationsRef.current.push({ rawContent: event.rawContent || '' });
-                break;
-
-              case 'tool-output':
-                if (event.toolOutput && iterationsRef.current.length > 0) {
-                  const lastIter = iterationsRef.current[iterationsRef.current.length - 1];
-                  lastIter.toolOutput = event.toolOutput;
-                }
-                break;
-
-              case 'iteration-end':
-                break;
-
               case 'done': {
                 const strippedText = stripShellTags(currentTextContent).trim();
                 if (strippedText) {
@@ -290,13 +272,13 @@ export function useForgeChat(options?: UseForgeChatOptions) {
                 setCumulativeStats((prev) => updateCumulativeStats(prev, finalStats));
 
                 const finalParts = [...parts];
-                const finalIterations = iterationsRef.current.length > 0
-                  ? [...iterationsRef.current]
-                  : undefined;
 
-                const extractedIteration = partsToIteration(finalParts);
-                const iterationsFromParts = finalIterations ?? (extractedIteration ? [extractedIteration] : undefined);
-                const rawContentFromParts = extractedIteration?.rawContent ?? '';
+                // Extract rawContent from text parts for display
+                const rawContentFromParts = finalParts
+                  .filter((p) => p.type === 'text')
+                  .map((p) => p.content)
+                  .join('\n')
+                  .trim();
 
                 const finalAssistantMessage: Message = {
                   id: assistantId,
@@ -305,7 +287,6 @@ export function useForgeChat(options?: UseForgeChatOptions) {
                   rawContent: rawContentFromParts,
                   timestamp: new Date(),
                   stats: finalStats,
-                  iterations: iterationsFromParts,
                   agent: finalMessageAgent,
                   rawPayload: messageRawPayload,
                 };

@@ -5,12 +5,11 @@
 import type {
   Message as BaseMessage,
   MessageStats,
-  AgentIteration,
   ToolStatus,
 } from '@/lib/messages/transform';
 
 // Re-export canonical types for hook consumers
-export type { MessageStats, AgentIteration, ToolStatus };
+export type { MessageStats, ToolStatus };
 
 /**
  * Frontend-friendly MessagePart interface.

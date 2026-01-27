@@ -10,7 +10,6 @@ export type {
   SandboxStatus,
   UseForgeChatOptions,
   MessageStats,
-  AgentIteration,
   ToolStatus,
 } from './types';
 
