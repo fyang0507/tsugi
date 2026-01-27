@@ -191,8 +191,8 @@ GitHub social preview 1280x640 for "tsugi" AI framework. Dark gradient backgroun
 ### Phase 3: Branding Updates
 - [x] Rename SkillForge → Tsugi throughout codebase
 - [x] Update page titles and meta tags
-- [ ] Add logo/favicon (once created)
-- [ ] Update GitHub repo description and banner
+- [x] Add logo/favicon (once created)
+- [x] Update GitHub repo description and banner
 
 ---
 

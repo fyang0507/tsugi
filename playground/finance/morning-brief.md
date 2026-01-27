@@ -58,4 +58,4 @@ Send to my discord via webhook (in env var).
 ---
 
 # R2
-Generate norning brief: Google, BTC
+add to my morning brief: Google, BTC
