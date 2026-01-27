@@ -37,11 +37,14 @@ src/
 ├── app/                    # Next.js App Router
 │   ├── api/
 │   │   ├── agent/          # SSE streaming endpoint
+│   │   ├── comparisons/    # A/B comparison API
 │   │   ├── conversations/  # CRUD for chat history
+│   │   ├── prompts/        # Prompts API
 │   │   └── skills/         # Skills API
 │   ├── task/               # Task execution page
 │   └── page.tsx            # Main chat UI
-├── components/             # React components (ChatMessage, Sidebar, etc.)
+├── components/
+│   ├── chat/               # Chat UI (ChatLayout, SkillsPane, ComparisonPane, etc.)
 │   └── landing/            # Landing page (Hero, HowItWorks, VisualizationDemo, etc.)
 ├── hooks/                  # useForgeChat, useConversations, useSkills
 └── lib/
@@ -50,10 +53,15 @@ src/
     │   ├── skill-agent.ts  # Skill codification agent
     │   └── tools/          # execute-shell, grounding, process-transcript
     ├── db/                 # SQLite/Turso database layer
+    ├── messages/           # Message transformation utilities
     ├── sandbox/            # Sandbox executors (local/Vercel)
     ├── skills/             # Skill storage (local/cloud)
-    └── tools/              # Command execution layer
-playground/                 # Demo tasks (discord, stripe, youtube-notion)
+    ├── sse/                # SSE stream creation and parsing
+    ├── tools/              # Command execution layer
+    └── types/              # Shared type definitions
+data/                       # Local data storage
+playground/                 # Demo tasks (discord, stripe, finance, youtube-notion)
+scripts/                    # Utility scripts
 MEMORY/                     # Plans, changelogs, progress tracking
 ```
 
@@ -77,11 +85,12 @@ Dark mode with aurora/gradient accents (cyan → purple → pink). Glass-morphis
 
 ## Playground Tasks
 
-Attached 4 tasks for testing/demo purposes in `playground/`
-- send discord message (using discord webhook api)
-- create stripe transaction (using stripe API)
-- generate video summary for watchlist
+Demo tasks for testing/development in `playground/`:
+- `discord/` - Send Discord message (webhook API)
+- `stripe/` - Create Stripe transaction (Stripe API)
+- `finance/` - Morning brief generation
+- `youtube-notion/` - Generate video summary for watchlist
 
 ## Project Memory
 
-`MEMORY/` directory holds `plan/`, `progress/` for planned and compeleted issues, check `changelog.md` for recent updates.
+`MEMORY/` directory holds `plan/`, `progress/` for planned and completed issues, check `changelog.md` for recent updates.
