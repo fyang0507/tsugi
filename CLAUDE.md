@@ -36,7 +36,7 @@ executeCommand() [command-executor.ts]
 src/
 ├── app/                    # Next.js App Router
 │   ├── api/
-│   │   ├── agent/          # SSE streaming endpoint
+│   │   ├── agent/          # Streaming endpoint (AI SDK UI)
 │   │   ├── comparisons/    # A/B comparison API
 │   │   ├── conversations/  # CRUD for chat history
 │   │   ├── prompts/        # Prompts API
@@ -46,7 +46,10 @@ src/
 ├── components/
 │   ├── chat/               # Chat UI (ChatLayout, SkillsPane, ComparisonPane, etc.)
 │   └── landing/            # Landing page (Hero, HowItWorks, VisualizationDemo, etc.)
-├── hooks/                  # useForgeChat, useConversations, useSkills
+├── hooks/
+│   ├── useTsugiChat/       # Chat hook wrapping AI SDK's useChat
+│   ├── useConversations.ts # Conversation CRUD
+│   └── useSkills.ts        # Skills management
 └── lib/
     ├── agent/              # Core agent logic
     │   ├── task-agent.ts   # Task execution agent
@@ -56,9 +59,7 @@ src/
     ├── messages/           # Message transformation utilities
     ├── sandbox/            # Sandbox executors (local/Vercel)
     ├── skills/             # Skill storage (local/cloud)
-    ├── sse/                # SSE stream creation and parsing
-    ├── tools/              # Command execution layer
-    └── types/              # Shared type definitions
+    └── tools/              # Command execution layer
 data/                       # Local data storage
 playground/                 # Demo tasks (discord, stripe, finance, youtube-notion)
 scripts/                    # Utility scripts
@@ -68,7 +69,7 @@ MEMORY/                     # Plans, changelogs, progress tracking
 ## Tech Stack
 
 - **Package Manager**: `pnpm` (not npm)
-- Next.js + React frontend with SSE streaming
+- Next.js + React frontend with Vercel AI SDK UI (`@ai-sdk/react`)
 - Gemini API with KV caching and built-in grounding (`googleSearch`, `urlContext`)
 - SQLite (Turso) for conversations + skills metadata
 - framer-motion for animations, lucide-react for icons

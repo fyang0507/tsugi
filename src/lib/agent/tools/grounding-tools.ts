@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { google } from '@ai-sdk/google';
 import { getFlashModel } from '../model-provider';
-import { getGenerateText } from '../braintrust-wrapper';
+import { getStreamText } from '../braintrust-wrapper';
 
 /**
  * Wrapped Google Search tool that makes a nested API call.
@@ -19,9 +19,9 @@ RULES:
     query: z.string().describe('The search query'),
   }),
   execute: async ({ query }: { query: string }): Promise<string> => {
-    const generateText = getGenerateText();
+    const streamText = getStreamText();
     try {
-      const result = await generateText({
+      const result = await streamText({
         model: getFlashModel(),
         tools: { googleSearch: google.tools.googleSearch({}) },
         prompt: `Search the web for: "${query}". Return a concise list of summary of relevant results with the most specific urls. Focus on breadth of information.`,
@@ -44,9 +44,9 @@ export const analyzeUrlTool = {
     url: z.string().describe('The URL to analyze'),
   }),
   execute: async ({ url }: { url: string }): Promise<string> => {
-    const generateText = getGenerateText();
+    const streamText = getStreamText();
     try {
-      const result = await generateText({
+      const result = await streamText({
         model: getFlashModel(),
         tools: { urlContext: google.tools.urlContext({}) },
         prompt: `Analyze this URL: ${url}`,

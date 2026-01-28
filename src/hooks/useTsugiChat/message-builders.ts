@@ -1,4 +1,4 @@
-import type { Message, MessagePart } from './types';
+import type { Message, LegacyMessagePart, MessageMetadata } from './types';
 
 /**
  * Generate a unique message ID
@@ -8,37 +8,35 @@ export function generateMessageId(): string {
 }
 
 /**
- * Create a user message
+ * Create a user message in AI SDK UIMessage format.
  */
 export function createUserMessage(
   content: string,
   agent: 'task' | 'skill',
   id?: string
 ): Message {
+  const metadata: MessageMetadata = { agent };
   return {
     id: id || generateMessageId(),
     role: 'user',
-    parts: [{ type: 'text', content }],
-    rawContent: content,
-    timestamp: new Date(),
-    agent,
+    parts: [{ type: 'text', text: content }],
+    metadata,
   };
 }
 
 /**
- * Create an initial empty assistant message placeholder
+ * Create an initial empty assistant message placeholder.
  */
 export function createInitialAssistantMessage(
   id: string,
   agent: 'task' | 'skill'
 ): Message {
+  const metadata: MessageMetadata = { agent };
   return {
     id,
     role: 'assistant',
     parts: [],
-    rawContent: '',
-    timestamp: new Date(),
-    agent,
+    metadata,
   };
 }
 
@@ -54,12 +52,13 @@ export function stripShellTags(text: string): string {
 }
 
 /**
- * Finalize text content and add to parts array if non-empty
+ * Finalize text content and add to parts array if non-empty.
+ * @deprecated Use AI SDK message handling instead
  */
 export function finalizeTextPart(
-  parts: MessagePart[],
+  parts: LegacyMessagePart[],
   textContent: string
-): MessagePart[] {
+): LegacyMessagePart[] {
   const strippedText = stripShellTags(textContent).trim();
   if (strippedText) {
     return [...parts, { type: 'text', content: strippedText }];

@@ -2,17 +2,12 @@
  * Centralized message transformation utilities.
  *
  * Message formats in the system:
- * 1. UIMessage - Frontend format with parts, stats (useTsugiChat)
- * 2. ModelMessage - AI SDK format for LLM calls (with proper tool-call/tool-result structure)
- * 3. DBMessage - Database storage format with parts
+ * 1. UIMessage - AI SDK format for frontend (useTsugiChat)
+ * 2. ModelMessage - AI SDK format for LLM calls
+ * 3. DBMessage - Database storage format
+ *
+ * For converting UIMessage to ModelMessage, use AI SDK's `convertToModelMessages()`.
  */
-
-import type {
-  ModelMessage,
-  TextPart,
-  ToolCallPart,
-  ToolResultPart,
-} from 'ai';
 
 // ============================================================================
 // Type Definitions
@@ -31,172 +26,109 @@ export interface MessageStats {
   tokensUnavailable?: boolean;
 }
 
-/** Message part types stored in the database */
-export type MessagePart =
-  | { type: 'text'; content: string; toolStatus?: ToolStatus }
-  | { type: 'reasoning'; content: string }
+/**
+ * AI SDK UIMessage part types.
+ * The actual type is imported from 'ai' package, but these are the shapes we use.
+ */
+export type AISDKMessagePart =
+  | { type: 'text'; text: string }
+  | { type: 'reasoning'; reasoning: string }
   | {
-      type: 'tool';  // Legacy shell tool (deprecated)
-      command: string;
-      commandId?: string;
-      content: string;  // Result
-      toolStatus?: ToolStatus;
-    }
-  | {
-      type: 'agent-tool';  // AI SDK tools (search, url_context, shell)
+      type: 'tool-invocation';
+      toolInvocationId: string;
       toolName: string;
-      toolArgs: Record<string, unknown>;
-      toolCallId: string;
-      content: string;  // Result
-      toolStatus?: ToolStatus;
+      args: Record<string, unknown>;
+      state: 'partial-call' | 'call' | 'result';
+      result?: unknown;
     }
-  | {
-      type: 'sources';  // Grounding citations from Gemini
-      sources: Array<{ id: string; url: string; title: string }>;
-    };
+  | { type: string; data: unknown };  // Custom data parts (data-sandbox, data-usage)
 
 /**
- * Unified message type - single source of truth for all message formats.
- *
- * Used for:
- * - Frontend display (useTsugiChat)
- * - Database storage
- * - API wire format
- *
- * Field optionality:
- * - id: Required in frontend, absent in wire format
- * - parts: Always provided by frontend, may be absent in legacy data
- * - timestamp/stats/agent/rawPayload: Runtime fields populated in frontend
+ * Database message type - compatible with AI SDK UIMessage but with DB-specific fields.
+ * Used for storing and retrieving messages from the database.
  */
 export interface Message {
   id?: string;
   role: 'user' | 'assistant';
-  rawContent: string;
-  parts?: MessagePart[];
-  // Runtime fields (populated in frontend, not in wire format)
+  parts?: AISDKMessagePart[];
+  // Legacy field for backward compatibility during migration
+  rawContent?: string;
+  content?: string;
+  // AI SDK format
+  createdAt?: Date;
+  // Legacy format
   timestamp?: Date;
+  // Metadata
   stats?: MessageStats;
   agent?: 'task' | 'skill';
   rawPayload?: unknown[];
+  metadata?: {
+    agent?: 'task' | 'skill';
+    stats?: MessageStats;
+  };
 }
-
-// Legacy aliases for backwards compatibility
-/** @deprecated Use Message instead */
-export type UIMessage = Message & { id: string };
-/** @deprecated Use Message instead */
-export type DBMessage = Message;
 
 // ============================================================================
 // Format Conversions
 // ============================================================================
 
 /**
- * Convert messages to AI SDK ModelMessage format with proper tool structure.
- * Preserves interleaved text/tool-call/tool-result order for correct context.
- *
- * Handles interleaving: [text1, tool-call, text2] becomes:
- *   assistant: [text1, tool-call]
- *   tool: [tool-result]
- *   assistant: [text2]  ← text after tool execution starts new message
- */
-export function toModelMessages(messages: Message[]): ModelMessage[] {
-  const result: ModelMessage[] = [];
-
-  for (const message of messages) {
-    if (message.role === 'user') {
-      result.push({ role: 'user', content: message.rawContent });
-      continue;
-    }
-
-    // Skip messages with no parts (legacy data without parts is unsupported)
-    if (!message.parts?.length) {
-      continue;
-    }
-
-    // Track state for interleaving
-    let currentAssistantContent: Array<TextPart | ToolCallPart> = [];
-    let pendingToolResults: ToolResultPart[] = [];
-    let hasToolCallsInCurrent = false;
-
-    const flushCurrentTurn = () => {
-      if (currentAssistantContent.length > 0) {
-        result.push({ role: 'assistant', content: currentAssistantContent });
-      }
-      if (pendingToolResults.length > 0) {
-        result.push({ role: 'tool', content: pendingToolResults });
-      }
-      currentAssistantContent = [];
-      pendingToolResults = [];
-      hasToolCallsInCurrent = false;
-    };
-
-    for (const part of message.parts) {
-      if (part.type === 'text') {
-        // If we have tool calls and results pending, flush them first
-        // This ensures text after tool execution starts a new assistant message
-        if (hasToolCallsInCurrent && pendingToolResults.length > 0) {
-          flushCurrentTurn();
-        }
-        currentAssistantContent.push({ type: 'text', text: part.content });
-      } else if (part.type === 'agent-tool' && part.toolCallId) {
-        // Tool call goes in assistant message
-        currentAssistantContent.push({
-          type: 'tool-call',
-          toolCallId: part.toolCallId,
-          toolName: part.toolName,
-          input: part.toolArgs,  // AI SDK uses 'input' not 'args'
-        });
-        hasToolCallsInCurrent = true;
-        // Tool result goes in separate tool message
-        if (part.content) {
-          pendingToolResults.push({
-            type: 'tool-result',
-            toolCallId: part.toolCallId,
-            toolName: part.toolName,
-            output: { type: 'text', value: part.content },  // AI SDK ToolResultOutput format
-          });
-        }
-      }
-      // Skip 'reasoning', 'sources', and legacy 'tool' parts - not needed for model context
-    }
-
-    // Flush any remaining content
-    flushCurrentTurn();
-  }
-
-  return result;
-}
-
-/**
- * Convert messages to a human-readable transcript string.
+ * Convert AI SDK UIMessages to a human-readable transcript string.
  * Used by the skill agent for transcript processing.
  *
  * Processes the `parts` array which contains the full execution history:
- * - reasoning: AI reasoning/thinking
- * - agent-tool: Tool calls with name, args, and output
- * - text: Plain text responses
+ * - text: Plain text responses (uses .text property)
+ * - reasoning: AI reasoning/thinking (uses .reasoning property)
+ * - tool-invocation: Tool calls with name, args, and result
  */
-export function toTranscriptString(messages: Message[]): string {
+export function toTranscriptString(messages: Array<{
+  role: 'user' | 'assistant';
+  parts?: AISDKMessagePart[];
+  content?: string;
+}>): string {
   const output: string[] = [];
 
   for (const m of messages) {
     if (m.role === 'user') {
-      output.push(`[user] ${m.rawContent}`);
+      // User messages: extract text from first text part
+      const textPart = m.parts?.find((p): p is { type: 'text'; text: string } => p.type === 'text');
+      const userText = textPart?.text || m.content || '';
+      if (userText) {
+        output.push(`[user] ${userText}`);
+      }
     } else if (m.parts && m.parts.length > 0) {
-      // Process parts array for full execution history
+      // Assistant messages: process parts array for full execution history
       for (const part of m.parts) {
-        if (part.type === 'reasoning') {
-          output.push(`[reasoning] ${part.content}`);
-        } else if (part.type === 'agent-tool') {
-          // Format tool call with name and args
-          const argsStr = JSON.stringify(part.toolArgs);
-          output.push(`[tool-call] ${part.toolName}: ${argsStr}`);
-          if (part.content) {
-            output.push(`[tool-output] ${part.content}`);
+        if (part.type === 'text') {
+          const textPart = part as { type: 'text'; text: string };
+          if (textPart.text) {
+            output.push(`[assistant] ${textPart.text}`);
           }
-        } else if (part.type === 'text') {
-          output.push(`[assistant] ${part.content}`);
+        } else if (part.type === 'reasoning') {
+          const reasoningPart = part as { type: 'reasoning'; reasoning: string };
+          if (reasoningPart.reasoning) {
+            output.push(`[reasoning] ${reasoningPart.reasoning}`);
+          }
+        } else if (part.type === 'tool-invocation') {
+          const toolPart = part as {
+            type: 'tool-invocation';
+            toolName: string;
+            args: Record<string, unknown>;
+            state: string;
+            result?: unknown;
+          };
+          // Format tool call with name and args
+          const argsStr = JSON.stringify(toolPart.args);
+          output.push(`[tool-call] ${toolPart.toolName}: ${argsStr}`);
+          // Include result if available
+          if (toolPart.state === 'result' && toolPart.result !== undefined) {
+            const resultStr = typeof toolPart.result === 'string'
+              ? toolPart.result
+              : JSON.stringify(toolPart.result);
+            output.push(`[tool-output] ${resultStr}`);
+          }
         }
+        // Skip data parts (sandbox, usage) - not relevant for transcripts
       }
     }
   }

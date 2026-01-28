@@ -150,10 +150,11 @@ function calculateStats(messages: Message[]): ConversationStats {
     // Skip user messages
     if (message.role !== 'assistant') continue;
 
-    // Skip skill-agent responses
-    if (message.agent === 'skill') continue;
+    // Skip skill-agent responses - use AI SDK metadata format
+    if (message.metadata?.agent === 'skill') continue;
 
-    const stats = message.stats;
+    // Get stats from AI SDK metadata format
+    const stats = message.metadata?.stats;
     if (stats) {
       totalPromptTokens += stats.promptTokens || 0;
       totalCompletionTokens += stats.completionTokens || 0;

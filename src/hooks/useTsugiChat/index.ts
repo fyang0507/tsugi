@@ -5,6 +5,11 @@ export { useTsugiChat } from './hook';
 export type {
   Message,
   MessagePart,
+  MessageMetadata,
+  TsugiDataTypes,
+  SandboxData,
+  UsageData,
+  LegacyMessagePart,
   CumulativeStats,
   ChatStatus,
   SandboxStatus,

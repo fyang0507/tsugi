@@ -45,3 +45,8 @@ export function getGenerateText() {
   const sdk = initBraintrust();
   return sdk.generateText;
 }
+
+export function getStreamText() {
+  const sdk = initBraintrust();
+  return sdk.streamText;
+}
