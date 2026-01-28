@@ -72,9 +72,11 @@ export function useConversations() {
       const data = await response.json();
       return {
         conversation: data.conversation,
-        messages: data.messages.map((m: Message & { timestamp: string }) => ({
+        // AI SDK uses createdAt instead of timestamp
+        messages: data.messages.map((m: Message & { createdAt?: string; timestamp?: string }) => ({
           ...m,
-          timestamp: new Date(m.timestamp),
+          // Support both AI SDK format (createdAt) and legacy format (timestamp)
+          createdAt: m.createdAt ? new Date(m.createdAt) : (m.timestamp ? new Date(m.timestamp) : new Date()),
         })),
       };
     } catch (error) {
@@ -150,13 +152,19 @@ export function useConversations() {
 
   const saveMessage = useCallback(async (conversationId: string, message: Message, sequenceOrder: number) => {
     try {
+      // AI SDK uses createdAt instead of timestamp - cast to access it
+      const messageWithDate = message as unknown as { createdAt?: Date };
+      const createdAt = messageWithDate.createdAt instanceof Date
+        ? messageWithDate.createdAt.toISOString()
+        : new Date().toISOString();
+
       const response = await fetch(`/api/conversations/${conversationId}/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: {
             ...message,
-            timestamp: message.timestamp.toISOString(),
+            createdAt,
           },
           sequenceOrder,
         }),

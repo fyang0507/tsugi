@@ -1,22 +1,73 @@
 /**
  * Frontend-specific types for useTsugiChat hook.
- * Intentionally uses flat interfaces for easier UI consumption.
+ * Aligned with AI SDK's UIMessage types for seamless integration.
  */
-import type {
-  Message as BaseMessage,
-  MessageStats,
-  ToolStatus,
-} from '@/lib/messages/transform';
+import type { UIMessage as BaseUIMessage, UIMessagePart } from 'ai';
+import type { MessageStats } from '@/lib/messages/transform';
 
 // Re-export canonical types for hook consumers
-export type { MessageStats, ToolStatus };
+export type { MessageStats };
 
 /**
- * Frontend-friendly MessagePart interface.
- * Uses a flat structure with optional properties for easier access in UI components.
- * Compatible with the discriminated union in transform.ts.
+ * Custom data part schemas for sandbox and usage events.
  */
-export interface MessagePart {
+export interface SandboxData {
+  status: string;
+  sandboxId?: string;
+  reason?: string;
+}
+
+export interface UsageData {
+  usage: {
+    promptTokens?: number;
+    completionTokens?: number;
+    cachedContentTokenCount?: number;
+    reasoningTokens?: number;
+  } | null;
+  executionTimeMs: number;
+  agent: 'task' | 'skill';
+}
+
+/**
+ * Custom data types for AI SDK useChat.
+ */
+export type TsugiDataTypes = {
+  sandbox: SandboxData;
+  usage: UsageData;
+};
+
+/**
+ * Message metadata stored alongside messages.
+ */
+export interface MessageMetadata {
+  agent?: 'task' | 'skill';
+  stats?: MessageStats;
+  rawPayload?: unknown[];
+}
+
+/**
+ * Frontend message type - extends UIMessage with metadata and custom data types.
+ * The message ID and parts come from AI SDK, metadata is added by our hook.
+ */
+export type Message = BaseUIMessage<MessageMetadata, TsugiDataTypes>;
+
+/**
+ * Message part type for our custom message type.
+ */
+export type MessagePart = UIMessagePart<TsugiDataTypes, Record<string, never>>;
+
+/**
+ * Tool status for backward compatibility with existing components.
+ * Maps to AI SDK tool states.
+ */
+export type ToolStatus = 'queued' | 'running' | 'completed';
+
+/**
+ * Legacy MessagePart interface for backward compatibility.
+ * Components should migrate to using AI SDK part types directly.
+ * @deprecated Use AI SDK UIMessagePart types instead
+ */
+export interface LegacyMessagePart {
   type: 'text' | 'reasoning' | 'tool' | 'agent-tool' | 'sources';
   content: string;
   command?: string;
@@ -26,16 +77,6 @@ export interface MessagePart {
   toolArgs?: Record<string, unknown>;
   toolCallId?: string;
   sources?: Array<{ id: string; url: string; title: string }>;
-}
-
-/**
- * Frontend message type with required fields for UI display.
- * Extends the base Message type with fields that are always present in the frontend.
- */
-export interface Message extends Omit<BaseMessage, 'parts'> {
-  id: string;           // Always present in frontend
-  parts: MessagePart[]; // Always present in frontend, using flat interface
-  timestamp: Date;      // Always present in frontend
 }
 
 export interface CumulativeStats {

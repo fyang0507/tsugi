@@ -39,9 +39,13 @@ export async function POST(
     const { id } = await params;
     const body = await request.json();
 
-    const message: Message & { id: string; timestamp: Date } = {
+    // Support both AI SDK format (createdAt) and legacy format (timestamp)
+    const message: Message & { id: string; createdAt?: Date; timestamp?: Date } = {
       ...body.message,
-      timestamp: new Date(body.message.timestamp),
+      // AI SDK uses createdAt
+      createdAt: body.message.createdAt ? new Date(body.message.createdAt) : undefined,
+      // Legacy format uses timestamp
+      timestamp: body.message.timestamp ? new Date(body.message.timestamp) : undefined,
     };
 
     await saveMessage(id, message, body.sequenceOrder);

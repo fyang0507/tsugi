@@ -1,5 +1,5 @@
 import { getConversation } from '@/lib/db';
-import { toTranscriptString, type Message } from '@/lib/messages/transform';
+import { toTranscriptString } from '@/lib/messages/transform';
 import { getSandboxExecutor } from '@/lib/sandbox/executor';
 import { getFlashModel } from '../model-provider';
 import { getGenerateText } from '../braintrust-wrapper';
@@ -79,7 +79,7 @@ export async function processTranscript(
   }
 
   // Build transcript from messages using centralized transform utility
-  const rawTranscript = toTranscriptString(result.messages as Message[]);
+  const rawTranscript = toTranscriptString(result.messages);
 
   if (!rawTranscript.trim()) {
     return 'Error: No messages found in conversation';

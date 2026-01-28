@@ -1,19 +1,17 @@
 import { createTaskAgent } from '@/lib/agent/task-agent';
 import { createSkillAgent } from '@/lib/agent/skill-agent';
-import { toModelMessages, type Message } from '@/lib/messages/transform';
 import { clearSandboxExecutor, getSandboxExecutor } from '@/lib/sandbox/executor';
 import { mergePlaygroundEnv } from '@/lib/tools/playground-env';
 import { runWithRequestContext } from '@/lib/agent/request-context';
 import { traced, flush } from 'braintrust';
 import { fetchTraceStats } from '@/lib/braintrust-api';
-import { createSSEStream, SSE_HEADERS } from '@/lib/sse';
+import { createUIMessageStream, createUIMessageStreamResponse, convertToModelMessages, type UIMessage } from 'ai';
 
 type AgentMode = 'task' | 'codify-skill';
 
-
 export async function POST(req: Request) {
   const { messages: initialMessages, mode = 'task', conversationId, env: uiEnv, sandboxId: requestSandboxId } = await req.json() as {
-    messages: Message[];
+    messages: UIMessage[];
     mode?: AgentMode;
     conversationId?: string;
     env?: Record<string, string>;
@@ -35,8 +33,6 @@ export async function POST(req: Request) {
     return Response.json({ error: 'Messages array is required' }, { status: 400 });
   }
 
-  const { stream, send, close } = createSSEStream();
-
   // Track abort state for sandbox cleanup
   let aborted = false;
   let sandboxUsed = false;
@@ -47,229 +43,147 @@ export async function POST(req: Request) {
     aborted = true;
   });
 
-  // Run the agent loop in the background
-  (async () => {
-    // Wrap with request context so skill agent's tool can access conversationId/sandboxId/env
-    const currentSandboxId = requestSandboxId || executor.getSandboxId() || undefined;
-    await runWithRequestContext({ conversationId, sandboxId: currentSandboxId, env: mergedEnv }, async () => {
-    try {
-      // For codify-skill mode: build transcript from history, create agent with closure
-      // The skill agent gets a blank context and calls get_processed_transcript tool
-      // Create agent per-request INSIDE request context so it picks up user-provided API key
-      let agent;
-      let messages: Message[];
+  const stream = createUIMessageStream({
+    execute: async ({ writer }) => {
+      // Wrap with request context so skill agent's tool can access conversationId/sandboxId/env
+      const currentSandboxId = requestSandboxId || executor.getSandboxId() || undefined;
+      await runWithRequestContext({ conversationId, sandboxId: currentSandboxId, env: mergedEnv }, async () => {
+        try {
+          // Create agent per-request INSIDE request context so it picks up user-provided API key
+          let agent;
+          let messages: UIMessage[];
 
-      if (mode === 'codify-skill') {
-        agent = createSkillAgent();
-        // Use conversation history if provided (follow-up messages), otherwise trigger with 'Start'
-        messages = initialMessages.length > 0 ? [...initialMessages] : [{ role: 'user', rawContent: 'Start' }];
-      } else {
-        agent = createTaskAgent();
-        messages = [...initialMessages];
-      }
+          if (mode === 'codify-skill') {
+            agent = createSkillAgent();
+            // Use conversation history if provided (follow-up messages), otherwise trigger with 'Start'
+            messages = initialMessages.length > 0 ? [...initialMessages] : [{
+              id: crypto.randomUUID(),
+              role: 'user',
+              parts: [{ type: 'text', text: 'Start' }],
+            } as UIMessage];
+          } else {
+            agent = createTaskAgent();
+            messages = [...initialMessages];
+          }
 
-      const startTime = Date.now();
+          const startTime = Date.now();
 
-      // Convert to ModelMessage array (preserves structure for KV cache)
-      const modelMessages = toModelMessages(messages);
+          // Convert UIMessages to ModelMessages using AI SDK's converter
+          const modelMessages = await convertToModelMessages(messages);
 
-      // Collect all raw stream parts for debugging
-      const rawStreamParts: unknown[] = [];
+          // Wrap agent execution with Braintrust tracing to capture root span ID
+          let rootSpanId: string | undefined;
 
-      // Wrap agent execution with Braintrust tracing to capture root span ID
-      // This allows us to query BTQL for aggregated token stats across all nested LLM calls
-      let rootSpanId: string | undefined;
+          const result = await traced(
+            async (span) => {
+              const spanAny = span as unknown as Record<string, unknown>;
+              rootSpanId = (spanAny._rootSpanId as string) ?? span.id;
+              return agent.stream({ messages: modelMessages });
+            },
+            { name: `${mode === 'codify-skill' ? 'skill' : 'task'}-agent-${conversationId || 'anonymous'}` }
+          );
 
-      // Stream agent response - agent handles multi-step via stopWhen condition
-      const result = await traced(
-        async (span) => {
-          // Capture root span ID for BTQL query
-          const spanAny = span as unknown as Record<string, unknown>;
-          rootSpanId = (spanAny._rootSpanId as string) ?? span.id;
-          return agent.stream({ messages: modelMessages });
-        },
-        { name: `${mode === 'codify-skill' ? 'skill' : 'task'}-agent-${conversationId || 'anonymous'}` }
-      );
+          // Stream UI message chunks, tracking sandbox usage from tool calls
+          const uiStream = result.toUIMessageStream();
+          for await (const chunk of uiStream) {
+            if (aborted) break;
 
-      // Use fullStream to capture both text and tool calls
-      for await (const part of result.fullStream) {
-        // Check for abort
-        if (aborted) {
-          break;
-        }
-
-        console.log('[Stream Debug] Event type:', part.type, part.type === 'tool-call' ? part.toolName : '');
-
-        // Collect raw stream part for debugging
-        rawStreamParts.push(part);
-
-        switch (part.type) {
-          case 'reasoning-delta':
-            send({ type: 'reasoning', content: part.text });
-            break;
-          case 'text-delta':
-            send({ type: 'text', content: part.text });
-            break;
-          case 'tool-call': {
-            // AI SDK uses 'input' instead of 'args' for tool arguments
-            const toolInput = (part as { input?: Record<string, unknown> }).input;
-            // Normalize tool name (strip erroneous prefixes like "google:")
-            const normalizedToolName = part.toolName.includes(':')
-              ? part.toolName.split(':').pop()!
-              : part.toolName;
-            // Track sandbox usage for shell tool
-            if (normalizedToolName === 'shell') {
-              const command = (toolInput as { command?: string })?.command;
+            // Track sandbox usage from tool calls
+            if (chunk.type === 'tool-input-available' && chunk.toolName === 'shell') {
+              const input = chunk.input as { command?: string } | undefined;
+              const command = input?.command;
               if (command && !command.startsWith('skill ')) {
                 sandboxUsed = true;
-              }
-              // Emit sandbox_active when:
-              // 1. No sandboxId was provided (new sandbox created)
-              // 2. Provided sandboxId differs from actual (reconnect failed, new sandbox created)
-              if (!sandboxIdEmitted && sandboxUsed) {
-                const currentSandboxId = executor.getSandboxId();
-                if (currentSandboxId && currentSandboxId !== requestSandboxId) {
-                  send({ type: 'sandbox_active', sandboxId: currentSandboxId });
-                  sandboxIdEmitted = true;
+
+                if (!sandboxIdEmitted) {
+                  const currentSandboxId = executor.getSandboxId();
+                  if (currentSandboxId && currentSandboxId !== requestSandboxId) {
+                    writer.write({
+                      type: 'data-sandbox',
+                      data: { status: 'sandbox_active', sandboxId: currentSandboxId },
+                      transient: true,
+                    });
+                    sandboxIdEmitted = true;
+                  }
                 }
               }
             }
-            send({
-              type: 'agent-tool-call',
-              toolName: normalizedToolName,
-              toolArgs: toolInput,
-              toolCallId: part.toolCallId,
-            });
-            break;
+
+            // Forward all chunks to the stream
+            writer.write(chunk);
           }
-          case 'tool-result': {
-            // Tool results (AI SDK handles execution automatically)
-            // AI SDK v6 uses 'output' instead of 'result'
-            const output = (part as { output?: unknown }).output;
-            const resultStr = typeof output === 'string' ? output : JSON.stringify(output ?? '');
-            send({
-              type: 'agent-tool-result',
-              toolCallId: part.toolCallId,
-              result: resultStr,
-            });
-            break;
+
+          const executionTimeMs = Date.now() - startTime;
+
+          // Fetch complete token stats from Braintrust BTQL
+          let braintrustStats = null;
+          if (rootSpanId) {
+            await flush();
+            braintrustStats = await fetchTraceStats(rootSpanId);
           }
-          case 'source': {
-            // Gemini grounding sources - citations for the response
-            const sourcePart = part as { id?: string; url?: string; title?: string };
-            send({
-              type: 'source',
-              sourceId: sourcePart.id,
-              sourceUrl: sourcePart.url,
-              sourceTitle: sourcePart.title,
-            });
-            break;
-          }
-          case 'error': {
-            // AI SDK stream error - extract meaningful message and send to client
-            const errorPart = part as { error?: { message?: string; responseBody?: string; data?: { error?: { message?: string } } } };
-            let errorMessage = 'An error occurred';
-            if (errorPart.error) {
-              // Try to get message from nested data.error.message (API errors)
-              if (errorPart.error.data?.error?.message) {
-                errorMessage = errorPart.error.data.error.message;
-              } else if (errorPart.error.message) {
-                errorMessage = errorPart.error.message;
+
+          console.log('[Braintrust Stats]', {
+            rootSpanId,
+            stats: braintrustStats,
+            executionTimeMs,
+          });
+
+          // Send usage stats as persistent data (will be part of message)
+          writer.write({
+            type: 'data-usage',
+            data: {
+              usage: braintrustStats ? {
+                promptTokens: braintrustStats.promptTokens,
+                completionTokens: braintrustStats.completionTokens,
+                cachedContentTokenCount: braintrustStats.cachedTokens,
+                reasoningTokens: braintrustStats.reasoningTokens,
+              } : null,
+              executionTimeMs,
+              agent: mode === 'codify-skill' ? 'skill' : 'task',
+            },
+          });
+
+        } catch (error) {
+          // Extract meaningful error message from various error types
+          let errorMessage = 'Unknown error';
+          if (error instanceof Error) {
+            errorMessage = error.message;
+            const anyError = error as unknown as Record<string, unknown>;
+            if (anyError.cause && typeof anyError.cause === 'object') {
+              const cause = anyError.cause as Record<string, unknown>;
+              if (cause.message) {
+                errorMessage = `${error.message}: ${cause.message}`;
               }
             }
-            console.error('[Agent] Stream error:', errorPart.error);
-            send({ type: 'error', content: errorMessage });
-            break;
-          }
-          default: {
-            // Handle step-finish events (not in TypeScript types but emitted by AI SDK)
-            const eventType = (part as { type: string }).type;
-            if (eventType === 'step-finish') {
-              console.log('[Step Debug] Step finished');
-            } else {
-              // Log other unhandled event types for debugging
-              console.log('[Stream Debug] Unhandled event type:', eventType);
+            if (anyError.responseBody) {
+              errorMessage = `${error.message} - ${JSON.stringify(anyError.responseBody)}`;
             }
-            break;
+          }
+          console.error('[Agent] Error during streaming:', error);
+          writer.write({ type: 'error', errorText: errorMessage });
+        } finally {
+          // Clean up sandbox if user aborted and sandbox was used (only in deployed env to save costs)
+          if (aborted && sandboxUsed && process.env.VERCEL === '1') {
+            try {
+              await clearSandboxExecutor();
+              writer.write({
+                type: 'data-sandbox',
+                data: { status: 'sandbox_terminated', reason: 'User aborted' },
+                transient: true,
+              });
+              console.log('[Agent] Sandbox cleaned up after abort');
+            } catch (cleanupError) {
+              console.error('[Agent] Failed to cleanup sandbox:', cleanupError);
+            }
           }
         }
-      }
-
-      const executionTimeMs = Date.now() - startTime;
-
-      // Fetch complete token stats from Braintrust BTQL
-      // This includes all nested LLM calls from tools (search, analyze_url, etc.)
-      let braintrustStats = null;
-      if (rootSpanId) {
-        // Flush pending spans to Braintrust before querying
-        await flush();
-        braintrustStats = await fetchTraceStats(rootSpanId);
-      }
-
-      console.log('[Braintrust Stats]', {
-        rootSpanId,
-        stats: braintrustStats,
-        executionTimeMs,
       });
-
-      // Send usage stats - may be null if Braintrust is unavailable
-      send({
-        type: 'usage',
-        usage: braintrustStats ? {
-          promptTokens: braintrustStats.promptTokens,
-          completionTokens: braintrustStats.completionTokens,
-          cachedContentTokenCount: braintrustStats.cachedTokens,
-          reasoningTokens: braintrustStats.reasoningTokens,
-        } : null,
-        executionTimeMs,
-        agent: mode === 'codify-skill' ? 'skill' : 'task',
-      });
-
-      // Send raw stream parts for debugging
-      send({ type: 'raw_payload', rawPayload: rawStreamParts });
-
-      send({ type: 'done' });
-    } catch (error) {
-      // Extract meaningful error message from various error types
-      let errorMessage = 'Unknown error';
-      if (error instanceof Error) {
-        errorMessage = error.message;
-        // Check for nested error details (common in AI SDK errors)
-        const anyError = error as unknown as Record<string, unknown>;
-        if (anyError.cause && typeof anyError.cause === 'object') {
-          const cause = anyError.cause as Record<string, unknown>;
-          if (cause.message) {
-            errorMessage = `${error.message}: ${cause.message}`;
-          }
-        }
-        // Check for response body in API errors
-        if (anyError.responseBody) {
-          errorMessage = `${error.message} - ${JSON.stringify(anyError.responseBody)}`;
-        }
-      }
-      console.error('[Agent] Error during streaming:', error);
-      send({
-        type: 'error',
-        content: errorMessage,
-      });
-    } finally {
-      // Clean up sandbox if user aborted and sandbox was used (only in deployed env to save costs)
-      // In local env, keep sandbox alive for faster iteration during development
-      if (aborted && sandboxUsed && process.env.VERCEL === '1') {
-        try {
-          await clearSandboxExecutor();
-          send({ type: 'sandbox_terminated', content: 'User aborted' });
-          console.log('[Agent] Sandbox cleaned up after abort');
-        } catch (cleanupError) {
-          console.error('[Agent] Failed to cleanup sandbox:', cleanupError);
-        }
-      }
-      close();
-    }
-    });
-  })();
-
-  return new Response(stream, {
-    headers: SSE_HEADERS,
+    },
+    onError: (error) => {
+      console.error('[Agent] Stream error:', error);
+      return error instanceof Error ? error.message : 'Unknown error';
+    },
   });
+
+  return createUIMessageStreamResponse({ stream });
 }

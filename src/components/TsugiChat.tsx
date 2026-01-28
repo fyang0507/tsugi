@@ -328,7 +328,10 @@ export default function TsugiChat() {
       await saveMessage(convId, message, index);
       // Auto-title on first user message (only for new conversations)
       if (messageCountRef.current === 0 && index === 0 && message.role === 'user') {
-        const title = message.rawContent.slice(0, 50) || 'New conversation';
+        // Extract text content from AI SDK message parts
+        const textPart = message.parts?.find((p): p is { type: 'text'; text: string } => p.type === 'text');
+        const textContent = textPart?.text || '';
+        const title = textContent.slice(0, 50) || 'New conversation';
         await renameConversation(convId, title);
       }
     },

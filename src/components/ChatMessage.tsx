@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Message, MessagePart } from '@/hooks/useTsugiChat';
+import type { Message, MessagePart } from '@/hooks/useTsugiChat';
 import { MessageStats } from './MessageStats';
 
 export interface SkillSuggestion {
@@ -21,31 +21,73 @@ interface ChatMessageProps {
   isCodifying?: boolean;
 }
 
-// Parse skill suggestion from tool result (skill suggest command)
-function parseToolSkillSuggestion(parts: MessagePart[]): SkillSuggestion | null {
-  for (const part of parts) {
-    // Check legacy 'tool' type parts
-    const isLegacySkillSuggest = part.type === 'tool' && part.command?.startsWith('skill suggest');
-    // Check new 'agent-tool' type parts (AI SDK shell tool)
-    const isAgentSkillSuggest = part.type === 'agent-tool' &&
-      part.toolName === 'shell' &&
-      (part.toolArgs?.command as string)?.startsWith('skill suggest');
+/**
+ * AI SDK tool part type - tools have type 'tool-{toolName}'
+ */
+interface AIToolPart {
+  type: string;  // 'tool-shell', 'tool-search', etc.
+  toolCallId: string;
+  state: 'input-streaming' | 'input-available' | 'output-available' | 'output-error';
+  input?: Record<string, unknown>;
+  output?: unknown;
+  errorText?: string;
+}
 
-    if (isLegacySkillSuggest || isAgentSkillSuggest) {
-      try {
-        const result = JSON.parse(part.content);
-        if (result.type === 'skill-suggestion') {
-          return {
-            status: result.status,
-            learned: result.learned,
-            name: result.name,
-            suggestedName: result.suggestedName,
-            similarSkills: result.similarSkills,
-            message: result.message,
-          };
+/**
+ * Get display name for tool.
+ */
+function getToolDisplayName(toolName: string): string {
+  switch (toolName) {
+    case 'search':
+      return 'Search';
+    case 'analyze_url':
+      return 'Analyze URL';
+    case 'shell':
+      return 'Shell';
+    default:
+      if (toolName.includes('get_processed_transcript')) {
+        return 'Task Summary';
+      }
+      return toolName || 'Tool';
+  }
+}
+
+/**
+ * Extract tool name from AI SDK part type (e.g., 'tool-shell' -> 'shell')
+ */
+function getToolNameFromPartType(partType: string): string {
+  if (partType.startsWith('tool-')) {
+    return partType.slice(5);  // Remove 'tool-' prefix
+  }
+  return partType;
+}
+
+// Parse skill suggestion from tool result (skill suggest command)
+function parseToolSkillSuggestion(parts: readonly { type: string; [key: string]: unknown }[]): SkillSuggestion | null {
+  for (const part of parts) {
+    // Check AI SDK tool parts (shell tool with skill suggest command)
+    if (part.type.startsWith('tool-')) {
+      const toolPart = part as unknown as AIToolPart;
+      const toolName = getToolNameFromPartType(toolPart.type);
+      if (toolName === 'shell' &&
+          toolPart.state === 'output-available' &&
+          (toolPart.input?.command as string)?.startsWith('skill suggest')) {
+        try {
+          const resultStr = typeof toolPart.output === 'string' ? toolPart.output : JSON.stringify(toolPart.output);
+          const result = JSON.parse(resultStr);
+          if (result.type === 'skill-suggestion') {
+            return {
+              status: result.status,
+              learned: result.learned,
+              name: result.name,
+              suggestedName: result.suggestedName,
+              similarSkills: result.similarSkills,
+              message: result.message,
+            };
+          }
+        } catch {
+          // Not valid JSON or not a skill suggestion
         }
-      } catch {
-        // Not valid JSON or not a skill suggestion
       }
     }
   }
@@ -53,17 +95,23 @@ function parseToolSkillSuggestion(parts: MessagePart[]): SkillSuggestion | null 
 }
 
 // Detect skill set command results
-function parseSkillCreation(parts: MessagePart[]): string | null {
+function parseSkillCreation(parts: readonly { type: string; [key: string]: unknown }[]): string | null {
   for (const part of parts) {
-    // Check shell tool results for "Skill "X" saved" pattern
-    const isShellTool = part.type === 'agent-tool' && part.toolName === 'shell';
-    const command = part.toolArgs?.command as string | undefined;
+    // Check AI SDK tool parts (shell tool with skill set command)
+    if (part.type.startsWith('tool-')) {
+      const toolPart = part as unknown as AIToolPart;
+      const toolName = getToolNameFromPartType(toolPart.type);
+      if (toolName === 'shell' && toolPart.state === 'output-available') {
+        const command = toolPart.input?.command as string | undefined;
 
-    if (isShellTool && command?.startsWith('skill set ')) {
-      // Extract skill name from result: 'Skill "name" saved'
-      const match = part.content?.match(/Skill "([^"]+)" saved/);
-      if (match) {
-        return match[1];
+        if (command?.startsWith('skill set ')) {
+          // Extract skill name from result: 'Skill "name" saved'
+          const resultStr = typeof toolPart.output === 'string' ? toolPart.output : '';
+          const match = resultStr.match(/Skill "([^"]+)" saved/);
+          if (match) {
+            return match[1];
+          }
+        }
       }
     }
   }
@@ -141,10 +189,10 @@ function SkillArtifact({ skillName }: SkillArtifactProps) {
 }
 
 // Render reasoning/thinking traces (collapsible)
-function ReasoningPart({ part }: { part: MessagePart }) {
+function ReasoningPartView({ reasoning }: { reasoning: string }) {
   const [expanded, setExpanded] = useState(false);
 
-  if (!part.content.trim()) return null;
+  if (!reasoning.trim()) return null;
 
   return (
     <div className="my-2">
@@ -157,91 +205,44 @@ function ReasoningPart({ part }: { part: MessagePart }) {
       </button>
       {expanded && (
         <div className="mt-1 ml-5 text-sm text-zinc-400 whitespace-pre-wrap border-l-2 border-zinc-700 pl-3">
-          {part.content}
+          {reasoning}
         </div>
       )}
     </div>
   );
 }
 
-// Render a tool (terminal) part - collapsible (styled like AgentToolPart for consistency)
-function ToolPart({ part }: { part: MessagePart }) {
-  const [expanded, setExpanded] = useState(false);
-  const status = part.toolStatus || (part.content ? 'completed' : 'queued');
-
-  // Status indicator colors and labels
-  const statusConfig = {
-    queued: { color: 'bg-zinc-500', label: 'queued', animate: false },
-    running: { color: 'bg-yellow-500', label: 'running...', animate: true },
-    completed: { color: 'bg-green-500', label: null, animate: false },
-  };
-  const config = statusConfig[status];
-
-  return (
-    <div className="my-2 w-full min-w-0 overflow-hidden">
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="flex items-center gap-2 text-sm text-zinc-400 hover:text-zinc-300 transition-colors w-full min-w-0 text-left overflow-hidden"
-      >
-        <ChevronIcon expanded={expanded} />
-        <div className={`w-2 h-2 rounded-full flex-shrink-0 ${config.color} ${config.animate ? 'animate-pulse' : ''}`} />
-        <span className="font-mono text-zinc-400 truncate flex-1 min-w-0">
-          $ {part.command}
-        </span>
-        {config.label && <span className="text-zinc-500 italic flex-shrink-0">{config.label}</span>}
-      </button>
-      {expanded && (
-        <div className="mt-1 ml-5 text-xs rounded p-2 max-h-[200px] overflow-y-auto">
-          <pre className="font-mono text-zinc-300 whitespace-pre-wrap break-all">
-            {part.content || <span className="text-zinc-500">{status === 'running' ? 'Running...' : 'Queued...'}</span>}
-          </pre>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// Get display name for agent tool
-function getToolDisplayName(toolName: string): string {
-  switch (toolName) {
-    case 'search':
-      return 'Search';
-    case 'analyze_url':
-      return 'Analyze URL';
-    case 'shell':
-      return 'Shell';
-    default:
-      if (toolName.includes('get_processed_transcript')) {
-        return 'Task Summary';
-      }
-      return toolName || 'Tool';
-  }
-}
-
-// Render agent tool call (search, analyze_url, get_processed_transcript) - collapsible
-function AgentToolPart({ part }: { part: MessagePart }) {
+// Render AI SDK tool part (search, analyze_url, shell, get_processed_transcript) - collapsible
+function ToolPartView({ part }: { part: AIToolPart }) {
   const [expanded, setExpanded] = useState(false);
 
-  const toolName = part.toolName || '';
+  const toolName = getToolNameFromPartType(part.type);
   const isSearch = toolName === 'search';
   const isAnalyzeUrl = toolName === 'analyze_url';
   const isTranscript = toolName.includes('get_processed_transcript');
   const isShellCommand = toolName === 'shell';
   const toolDisplayName = getToolDisplayName(toolName);
 
-  // Extract search query, URL, or command from args
-  const args = part.toolArgs as Record<string, unknown> | undefined;
-  const toolDetail = args?.query || args?.url || args?.command || '';
+  // Extract search query, URL, or command from input
+  const input = part.input || {};
+  const toolDetail = input.query || input.url || input.command || '';
 
-  const isLoading = !part.content;
-  const sources = part.sources || [];
+  // AI SDK tool states
+  const isLoading = part.state === 'input-streaming' || part.state === 'input-available';
+  const hasError = part.state === 'output-error';
+  const result = part.output;
+  const resultContent = hasError
+    ? part.errorText || 'Error'
+    : typeof result === 'string' ? result : (result ? JSON.stringify(result, null, 2) : '');
 
-  // Color coding: purple for transcript, green for shell, blue for search tools
-  const dotColor = isTranscript ? 'bg-purple-500' : isShellCommand ? 'bg-green-500' : 'bg-blue-500';
+  // Color coding: purple for transcript, green for shell, red for error, blue for search tools
+  const dotColor = hasError
+    ? 'bg-red-500'
+    : isTranscript ? 'bg-purple-500' : isShellCommand ? 'bg-green-500' : 'bg-blue-500';
   const loadingText = isTranscript ? 'processing...' : isShellCommand ? 'running...' : 'searching...';
 
   // For shell commands, truncate long commands
-  const shellCommand = isShellCommand ? String(args?.command || '') : '';
+  const shellCommand = isShellCommand ? String(input.command || '') : '';
   const truncatedCommand = shellCommand.length > 60
     ? shellCommand.slice(0, 60) + '...'
     : shellCommand;
@@ -267,21 +268,21 @@ function AgentToolPart({ part }: { part: MessagePart }) {
           </>
         )}
         {isLoading && <span className="text-zinc-500 italic flex-shrink-0">{loadingText}</span>}
-        {!isLoading && sources.length > 0 && (
-          <span className="text-zinc-500 flex-shrink-0">{sources.length} sources</span>
-        )}
+        {hasError && <span className="text-red-400 italic flex-shrink-0">error</span>}
       </button>
       {expanded && (
         <div className={`mt-1 ml-5 text-xs rounded p-2 ${isTranscript ? 'max-h-[400px]' : 'max-h-[200px]'} overflow-y-auto`}>
-          {(isTranscript || isSearch || isAnalyzeUrl) && part.content ? (
+          {(isTranscript || isSearch || isAnalyzeUrl) && resultContent ? (
             <div className="prose prose-invert prose-xs max-w-none prose-p:my-1 prose-headings:my-2 prose-ul:my-1 prose-li:my-0">
               <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                {part.content}
+                {resultContent}
               </ReactMarkdown>
             </div>
-          ) : part.content ? (
-            <pre className="whitespace-pre-wrap break-all text-zinc-500">{part.content}</pre>
-          ) : null}
+          ) : resultContent ? (
+            <pre className={`whitespace-pre-wrap break-all ${hasError ? 'text-red-400' : 'text-zinc-500'}`}>{resultContent}</pre>
+          ) : (
+            <span className="text-zinc-500">{isLoading ? 'Running...' : 'No output'}</span>
+          )}
         </div>
       )}
     </div>
@@ -338,7 +339,7 @@ function MarkdownContent({ children }: { children: string }): React.ReactNode {
 }
 
 // Render a text part with markdown
-function TextPart({ content }: { content: string }): React.ReactNode {
+function TextPartView({ content }: { content: string }): React.ReactNode {
   if (!content.trim()) return null;
 
   const trimmed = content.trim();
@@ -377,35 +378,13 @@ function TextPart({ content }: { content: string }): React.ReactNode {
   return <MarkdownContent>{content}</MarkdownContent>;
 }
 
-// Render sources citations
-function SourcesPart({ part }: { part: MessagePart }) {
-  const sources = part.sources || [];
-  if (sources.length === 0) return null;
-
-  return (
-    <div className="mt-3 pt-2 border-t border-zinc-700">
-      <div className="text-xs text-zinc-500 mb-1">Sources:</div>
-      <div className="flex flex-wrap gap-2">
-        {sources.map((source) => (
-          <a
-            key={source.id}
-            href={source.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-xs px-2 py-1 bg-zinc-700 hover:bg-zinc-600 rounded text-zinc-300 transition-colors"
-          >
-            {source.title}
-          </a>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 export default function ChatMessage({ message, onCodifySkill, isCodifying }: ChatMessageProps) {
-  // User message
+  // User message - extract text from first text part
   if (message.role === 'user') {
-    const textContent = message.parts[0]?.content || '';
+    const firstPart = message.parts?.[0];
+    const textContent = firstPart && firstPart.type === 'text'
+      ? (firstPart as unknown as { type: 'text'; text: string }).text
+      : '';
     return (
       <div className="flex justify-end w-full min-w-0 max-w-full">
         <div className="max-w-[80%] min-w-0 px-4 py-3 chat-bubble-user text-zinc-100 rounded-2xl rounded-br-md overflow-hidden" style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
@@ -416,35 +395,47 @@ export default function ChatMessage({ message, onCodifySkill, isCodifying }: Cha
   }
 
   // Assistant message - render parts inline
-  const hasParts = message.parts.length > 0;
+  const parts = message.parts || [];
+  const hasParts = parts.length > 0;
 
   // Check for skill suggestion in tool results (from skill suggest command)
-  const skillSuggestion = parseToolSkillSuggestion(message.parts);
+  const skillSuggestion = parseToolSkillSuggestion(parts);
 
   // Check for skill creation in tool results (from skill set command)
-  const createdSkillName = parseSkillCreation(message.parts);
+  const createdSkillName = parseSkillCreation(parts);
+
+  // Get stats from message metadata (AI SDK format)
+  const stats = message.metadata?.stats;
 
   return (
     <div className="flex justify-start w-full min-w-0">
       <div className="max-w-[90%] min-w-0 px-4 py-3 chat-bubble-assistant text-zinc-100 rounded-2xl rounded-bl-md overflow-hidden">
         {hasParts ? (
           <>
-            {message.parts.map((part, index) => {
+            {parts.map((part, index) => {
+              // AI SDK reasoning part - uses .reasoning property (but may be typed differently)
               if (part.type === 'reasoning') {
-                return <ReasoningPart key={index} part={part} />;
+                const reasoningPart = part as unknown as { type: 'reasoning'; reasoning?: string; text?: string };
+                const reasoning = reasoningPart.reasoning || reasoningPart.text || '';
+                return <ReasoningPartView key={index} reasoning={reasoning} />;
               }
-              if (part.type === 'tool') {
-                return <ToolPart key={index} part={part} />;
+              // AI SDK tool part - type starts with 'tool-'
+              if (part.type.startsWith('tool-')) {
+                return <ToolPartView key={index} part={part as unknown as AIToolPart} />;
               }
-              if (part.type === 'agent-tool') {
-                return <AgentToolPart key={index} part={part} />;
+              // AI SDK text part - uses .text property
+              if (part.type === 'text') {
+                const textPart = part as unknown as { type: 'text'; text: string };
+                return <TextPartView key={index} content={textPart.text || ''} />;
               }
-              if (part.type === 'sources') {
-                return <SourcesPart key={index} part={part} />;
+              // Skip data parts (sandbox, usage) - they're handled elsewhere
+              if (part.type.startsWith('data-')) {
+                return null;
               }
-              return <TextPart key={index} content={part.content} />;
+              // Fallback for unknown part types
+              return null;
             })}
-            <MessageStats stats={message.stats} />
+            <MessageStats stats={stats} />
             {createdSkillName && <SkillArtifact skillName={createdSkillName} />}
             {skillSuggestion && skillSuggestion.status === 'success' && onCodifySkill && (
               <div className="mt-3 pt-3 border-t border-white/10">

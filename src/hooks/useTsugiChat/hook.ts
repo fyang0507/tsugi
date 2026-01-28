@@ -1,378 +1,252 @@
 'use client';
 
-import { useState, useCallback, useRef, useEffect } from 'react';
-import type { MessageStats } from '@/lib/messages/transform';
-import type { SSEEvent } from '@/lib/types/sse';
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import { useChat } from '@ai-sdk/react';
+import { DefaultChatTransport } from 'ai';
+import { z } from 'zod';
 import type {
   Message,
-  MessagePart,
   CumulativeStats,
   ChatStatus,
   SandboxStatus,
   UseTsugiChatOptions,
+  MessageMetadata,
+  SandboxData,
+  UsageData,
 } from './types';
-import {
-  generateMessageId,
-  createUserMessage,
-  createInitialAssistantMessage,
-  stripShellTags,
-} from './message-builders';
-import {
-  createEmptyStats,
-  calculateCumulativeStats,
-  updateCumulativeStats,
-} from './stats-utils';
+import { createEmptyStats, calculateCumulativeStats } from './stats-utils';
+
+/**
+ * Data part schemas for AI SDK useChat.
+ * These define the shape of custom data events from the server.
+ */
+const dataPartSchemas = {
+  sandbox: z.object({
+    status: z.string(),
+    sandboxId: z.string().optional(),
+    reason: z.string().optional(),
+  }),
+  usage: z.object({
+    usage: z.object({
+      promptTokens: z.number().optional(),
+      completionTokens: z.number().optional(),
+      cachedContentTokenCount: z.number().optional(),
+      reasoningTokens: z.number().optional(),
+    }).nullable(),
+    executionTimeMs: z.number(),
+    agent: z.enum(['task', 'skill']),
+  }),
+};
 
 export function useTsugiChat(options?: UseTsugiChatOptions) {
-  const [messages, setMessages] = useState<Message[]>(options?.initialMessages ?? []);
-  const [status, setStatus] = useState<ChatStatus>('ready');
-  const [error, setError] = useState<string | null>(null);
-  const [sandboxTimeoutMessage, setSandboxTimeoutMessage] = useState<string | null>(null);
+  // Sandbox state (transient - not persisted in messages)
   const [currentSandboxId, setCurrentSandboxId] = useState<string | null>(null);
   const [sandboxStatus, setSandboxStatus] = useState<SandboxStatus>('disconnected');
-  const [cumulativeStats, setCumulativeStats] = useState<CumulativeStats>(createEmptyStats());
-  const abortControllerRef = useRef<AbortController | null>(null);
+  const [sandboxTimeoutMessage, setSandboxTimeoutMessage] = useState<string | null>(null);
 
-  // Reset messages when initialMessages changes (conversation switch)
+  // Cumulative stats across all messages
+  const [cumulativeStats, setCumulativeStats] = useState<CumulativeStats>(createEmptyStats());
+
+  // Track previous message count for onMessageComplete callbacks
+  const prevMessageCountRef = useRef(0);
+
+  // Body params for API requests - these get passed to transport.body
+  const bodyParamsRef = useRef<{
+    mode: 'task' | 'codify-skill';
+    conversationId?: string;
+    env?: Record<string, string>;
+    sandboxId: string | null;
+  }>({
+    mode: 'task',
+    conversationId: undefined,
+    env: undefined,
+    sandboxId: null,
+  });
+
+  // Memoize initial messages to prevent unnecessary re-renders
+  const initialMessages = useMemo(() => options?.initialMessages ?? [], [options?.initialMessages]);
+
+  // Create transport with dynamic body - using a function for body to get latest params
+  const transport = useMemo(() => new DefaultChatTransport<Message>({
+    api: '/api/agent',
+    body: () => bodyParamsRef.current,
+  }), []);
+
+  // AI SDK useChat hook with typed data parts
+  const chat = useChat<Message>({
+    transport,
+    dataPartSchemas,
+    messages: initialMessages,
+    onData: (part) => {
+      // Handle transient sandbox events
+      if (part.type === 'data-sandbox') {
+        const data = part.data as SandboxData;
+        if (data.status === 'sandbox_active') {
+          setSandboxStatus('connected');
+          if (data.sandboxId) {
+            setCurrentSandboxId(data.sandboxId);
+          }
+        } else if (data.status === 'sandbox_terminated') {
+          setSandboxStatus('disconnected');
+          setCurrentSandboxId(null);
+        } else if (data.status === 'sandbox_timeout') {
+          setSandboxTimeoutMessage(data.reason || 'Sandbox timed out due to inactivity.');
+          setSandboxStatus('disconnected');
+          setCurrentSandboxId(null);
+        }
+      }
+    },
+    onFinish: ({ message }) => {
+      // Extract usage from persistent data parts and update cumulative stats
+      const usagePart = message.parts?.find(
+        (p): p is { type: 'data-usage'; id?: string; data: UsageData } =>
+          p.type === 'data-usage'
+      );
+
+      if (usagePart) {
+        const { usage, executionTimeMs } = usagePart.data;
+
+        setCumulativeStats((prev) => ({
+          totalPromptTokens: prev.totalPromptTokens + (usage?.promptTokens || 0),
+          totalCompletionTokens: prev.totalCompletionTokens + (usage?.completionTokens || 0),
+          totalCachedTokens: prev.totalCachedTokens + (usage?.cachedContentTokenCount || 0),
+          totalReasoningTokens: prev.totalReasoningTokens + (usage?.reasoningTokens || 0),
+          totalExecutionTimeMs: prev.totalExecutionTimeMs + executionTimeMs,
+          messageCount: prev.messageCount + 1,
+          tokensUnavailableCount: prev.tokensUnavailableCount + (usage === null ? 1 : 0),
+        }));
+
+        // Add stats to message metadata for persistence
+        if (message.metadata) {
+          message.metadata.stats = {
+            promptTokens: usage?.promptTokens,
+            completionTokens: usage?.completionTokens,
+            cachedTokens: usage?.cachedContentTokenCount,
+            reasoningTokens: usage?.reasoningTokens,
+            executionTimeMs,
+            tokensUnavailable: usage === null,
+          };
+          message.metadata.agent = usagePart.data.agent;
+        }
+      }
+
+      // Call onMessageComplete for the new message
+      if (options?.onMessageComplete) {
+        const messages = chat.messages;
+        const messageIndex = messages.findIndex((m) => m.id === message.id);
+        if (messageIndex >= 0) {
+          options.onMessageComplete(message as Message, messageIndex);
+        }
+      }
+    },
+    onError: (error) => {
+      console.error('[useTsugiChat] Error:', error);
+    },
+  });
+
+  // Reset state when initialMessages changes (conversation switch)
   useEffect(() => {
     if (options?.initialMessages) {
-      setMessages(options.initialMessages);
+      chat.setMessages(options.initialMessages);
       setCurrentSandboxId(null);
       setSandboxStatus('disconnected');
       setCumulativeStats(calculateCumulativeStats(options.initialMessages));
+      prevMessageCountRef.current = options.initialMessages.length;
     }
-  }, [options?.initialMessages]);
+  }, [options?.initialMessages, chat.setMessages]);
 
+  // Track message changes and call onMessageComplete for user messages
+  useEffect(() => {
+    const currentCount = chat.messages.length;
+    const prevCount = prevMessageCountRef.current;
+
+    // Check for new messages
+    if (currentCount > prevCount && options?.onMessageComplete) {
+      // Find new user messages (assistant messages are handled in onFinish)
+      for (let i = prevCount; i < currentCount; i++) {
+        const message = chat.messages[i];
+        if (message.role === 'user') {
+          options.onMessageComplete(message as Message, i);
+        }
+      }
+    }
+
+    prevMessageCountRef.current = currentCount;
+  }, [chat.messages, options?.onMessageComplete]);
+
+  // Derive status from chat.status
+  const status: ChatStatus = chat.status === 'streaming' || chat.status === 'submitted'
+    ? 'streaming'
+    : chat.error
+      ? 'error'
+      : 'ready';
+
+  // Wrap sendMessage to support our API signature
   const sendMessage = useCallback(async (
     content: string,
-    mode: 'task' | 'codify-skill' = 'task',
-    conversationId?: string,
-    env?: Record<string, string>
+    messageMode: 'task' | 'codify-skill' = 'task',
+    messageConversationId?: string,
+    messageEnv?: Record<string, string>
   ) => {
     if (status === 'streaming') return;
 
-    setStatus('streaming');
-    setError(null);
-
-    const messageAgent = mode === 'codify-skill' ? 'skill' : 'task';
-    const userMessage = createUserMessage(content, messageAgent);
-
-    // Filter messages by agent to keep task and skill conversations separate
-    const filteredMessages = [...messages, userMessage].filter((m) => {
-      if (messageAgent === 'task') {
-        return m.agent === 'task' || m.agent === undefined;
-      }
-      return m.agent === 'skill';
-    });
-
-    const apiMessages = filteredMessages.map(m => ({
-      role: m.role,
-      rawContent: m.rawContent,
-      parts: m.parts,
-    }));
-
-    setMessages((prev) => [...prev, userMessage]);
-
-    // Mutable state for tracking current streaming position
-    const assistantId = generateMessageId();
-    const parts: MessagePart[] = [];
-    let currentTextContent = '';
-    const messageStartTime = Date.now();
-    let messageStats: MessageStats = {};
-    let finalMessageAgent: 'task' | 'skill' = messageAgent;
-    let messageRawPayload: unknown[] | undefined;
-
-    const updateAssistantMessage = () => {
-      const finalParts = [...parts];
-      const strippedText = stripShellTags(currentTextContent).trim();
-      if (strippedText) {
-        const lastPart = finalParts[finalParts.length - 1];
-        if (lastPart?.type === 'text') {
-          finalParts[finalParts.length - 1] = { type: 'text', content: strippedText };
-        } else {
-          finalParts.push({ type: 'text', content: strippedText });
-        }
-      }
-      setMessages((prev) =>
-        prev.map((m) => m.id === assistantId ? { ...m, parts: finalParts } : m)
-      );
+    // Update body params ref for this request (will be used by transport.body())
+    bodyParamsRef.current = {
+      mode: messageMode,
+      conversationId: messageConversationId,
+      env: messageEnv,
+      sandboxId: currentSandboxId,
     };
 
-    setMessages((prev) => [...prev, createInitialAssistantMessage(assistantId, messageAgent)]);
+    // Determine agent type for metadata
+    const messageAgent = messageMode === 'codify-skill' ? 'skill' : 'task';
 
-    abortControllerRef.current = new AbortController();
+    // Create metadata for the new message
+    const metadata: MessageMetadata = {
+      agent: messageAgent,
+    };
 
-    try {
-      const response = await fetch('/api/agent', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: apiMessages, mode, conversationId, env, sandboxId: currentSandboxId }),
-        signal: abortControllerRef.current.signal,
-      });
+    // Use sendMessage from useChat
+    await chat.sendMessage({
+      role: 'user',
+      parts: [{ type: 'text', text: content }],
+      metadata,
+    });
+  }, [status, chat, currentSandboxId]);
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const reader = response.body?.getReader();
-      if (!reader) throw new Error('No reader available');
-
-      const decoder = new TextDecoder();
-      let buffer = '';
-      let receivedDone = false;
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n\n');
-        buffer = lines.pop() || '';
-
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) continue;
-
-          try {
-            const event: SSEEvent = JSON.parse(line.slice(6));
-
-            switch (event.type) {
-              case 'text':
-                currentTextContent += event.content || '';
-                updateAssistantMessage();
-                break;
-
-              case 'reasoning': {
-                const strippedText = stripShellTags(currentTextContent).trim();
-                if (strippedText) {
-                  parts.push({ type: 'text', content: strippedText });
-                  currentTextContent = '';
-                }
-                const lastPart = parts[parts.length - 1];
-                if (lastPart?.type === 'reasoning') {
-                  lastPart.content += event.content || '';
-                } else {
-                  parts.push({ type: 'reasoning', content: event.content || '' });
-                }
-                updateAssistantMessage();
-                break;
-              }
-
-              case 'tool-call': {
-                const strippedText = stripShellTags(currentTextContent).trim();
-                if (strippedText) {
-                  parts.push({ type: 'text', content: strippedText });
-                }
-                currentTextContent = '';
-                parts.push({
-                  type: 'tool',
-                  command: event.command || '',
-                  commandId: event.commandId,
-                  content: '',
-                  toolStatus: 'queued',
-                });
-                updateAssistantMessage();
-                break;
-              }
-
-              case 'tool-start': {
-                const startingPart = parts.find(
-                  (p) => p.type === 'tool' && p.commandId === event.commandId
-                );
-                if (startingPart) startingPart.toolStatus = 'running';
-                updateAssistantMessage();
-                break;
-              }
-
-              case 'tool-result': {
-                const matchingPart = parts.find(
-                  (p) => p.type === 'tool' && p.commandId === event.commandId
-                );
-                if (matchingPart) {
-                  matchingPart.content = event.result || '';
-                  matchingPart.toolStatus = 'completed';
-                }
-                updateAssistantMessage();
-                break;
-              }
-
-              case 'agent-tool-call': {
-                const strippedText = stripShellTags(currentTextContent).trim();
-                if (strippedText) {
-                  parts.push({ type: 'text', content: strippedText });
-                }
-                currentTextContent = '';
-                parts.push({
-                  type: 'agent-tool',
-                  content: '',
-                  toolName: event.toolName,
-                  toolArgs: event.toolArgs,
-                  toolCallId: event.toolCallId,
-                });
-                updateAssistantMessage();
-                break;
-              }
-
-              case 'agent-tool-result': {
-                const matchingPart = parts.find(
-                  (p) => p.type === 'agent-tool' && p.toolCallId === event.toolCallId
-                );
-                if (matchingPart) matchingPart.content = event.result || '';
-                updateAssistantMessage();
-                break;
-              }
-
-              case 'usage': {
-                if (event.usage) {
-                  messageStats = {
-                    promptTokens: (messageStats.promptTokens || 0) + (event.usage.promptTokens || 0),
-                    completionTokens: (messageStats.completionTokens || 0) + (event.usage.completionTokens || 0),
-                    cachedTokens: (messageStats.cachedTokens || 0) + (event.usage.cachedContentTokenCount || 0),
-                    reasoningTokens: (messageStats.reasoningTokens || 0) + (event.usage.reasoningTokens || 0),
-                    executionTimeMs: (messageStats.executionTimeMs || 0) + (event.executionTimeMs || 0),
-                  };
-                } else {
-                  messageStats = {
-                    ...messageStats,
-                    tokensUnavailable: true,
-                    executionTimeMs: (messageStats.executionTimeMs || 0) + (event.executionTimeMs || 0),
-                  };
-                }
-                if (event.agent) finalMessageAgent = event.agent;
-                break;
-              }
-
-              case 'raw_payload':
-                messageRawPayload = event.rawPayload;
-                break;
-
-              case 'done': {
-                const strippedText = stripShellTags(currentTextContent).trim();
-                if (strippedText) {
-                  parts.push({ type: 'text', content: strippedText });
-                  currentTextContent = '';
-                }
-
-                const finalStats: MessageStats = {
-                  ...messageStats,
-                  executionTimeMs: messageStats.executionTimeMs || (Date.now() - messageStartTime),
-                };
-
-                setCumulativeStats((prev) => updateCumulativeStats(prev, finalStats));
-
-                const finalParts = [...parts];
-
-                // Extract rawContent from text parts for display
-                const rawContentFromParts = finalParts
-                  .filter((p) => p.type === 'text')
-                  .map((p) => p.content)
-                  .join('\n')
-                  .trim();
-
-                const finalAssistantMessage: Message = {
-                  id: assistantId,
-                  role: 'assistant',
-                  parts: finalParts,
-                  rawContent: rawContentFromParts,
-                  timestamp: new Date(),
-                  stats: finalStats,
-                  agent: finalMessageAgent,
-                  rawPayload: messageRawPayload,
-                };
-
-                setMessages((prev) =>
-                  prev.map((m) => m.id === assistantId ? finalAssistantMessage : m)
-                );
-
-                setMessages((prev) => {
-                  const userIdx = prev.length - 2;
-                  const assistantIdx = prev.length - 1;
-                  if (options?.onMessageComplete) {
-                    options.onMessageComplete(userMessage, userIdx);
-                    options.onMessageComplete(finalAssistantMessage, assistantIdx);
-                  }
-                  return prev;
-                });
-
-                receivedDone = true;
-                setStatus('ready');
-                break;
-              }
-
-              case 'sandbox_timeout':
-                setSandboxTimeoutMessage(event.content || 'Sandbox timed out due to inactivity.');
-                setCurrentSandboxId(null);
-                setSandboxStatus('disconnected');
-                break;
-
-              case 'sandbox_active':
-                if (event.sandboxId) {
-                  setCurrentSandboxId(event.sandboxId);
-                  setSandboxStatus('connected');
-                }
-                break;
-
-              case 'sandbox_terminated':
-                setCurrentSandboxId(null);
-                setSandboxStatus('disconnected');
-                break;
-
-              case 'error':
-                setError(event.content || 'Unknown error');
-                setStatus('error');
-                break;
-            }
-          } catch {
-            // Skip invalid JSON
-          }
-        }
-      }
-
-      if (!receivedDone) {
-        setError('Connection closed unexpectedly. The API may have returned an error.');
-        setStatus('error');
-      }
-    } catch (err) {
-      if (err instanceof Error && err.name === 'AbortError') {
-        setStatus('ready');
-        return;
-      }
-      setError(err instanceof Error ? err.message : 'Unknown error');
-      setStatus('error');
-    } finally {
-      abortControllerRef.current = null;
-    }
-  }, [messages, status, options, currentSandboxId]);
-
+  // Clear all messages and reset state
   const clearMessages = useCallback(() => {
-    setMessages([]);
-    setError(null);
-    setStatus('ready');
+    chat.setMessages([]);
+    chat.clearError();
     setCurrentSandboxId(null);
     setSandboxStatus('disconnected');
     setCumulativeStats(createEmptyStats());
-  }, []);
+    prevMessageCountRef.current = 0;
+  }, [chat]);
 
-  const stop = useCallback(() => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-      abortControllerRef.current = null;
-      setStatus('ready');
-    }
-  }, []);
-
+  // Clear sandbox timeout message
   const clearSandboxTimeout = useCallback(() => {
     setSandboxTimeoutMessage(null);
   }, []);
 
   return {
-    messages,
-    setMessages,
+    // Messages from AI SDK
+    messages: chat.messages as Message[],
+    setMessages: chat.setMessages as React.Dispatch<React.SetStateAction<Message[]>>,
+
+    // Status
     status,
-    error,
+    error: chat.error?.message || null,
+
+    // Stats
     cumulativeStats,
+
+    // Actions
     sendMessage,
     clearMessages,
-    stop,
+    stop: chat.stop,
+
+    // Sandbox state
     sandboxTimeoutMessage,
     clearSandboxTimeout,
     currentSandboxId,

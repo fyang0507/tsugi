@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@ai-sdk/google": "^3.0.10",
+    "@ai-sdk/react": "^3.0.59",
     "@braintrust/otel": "^0.1.2",
     "@libsql/client": "^0.17.0",
     "@tailwindcss/typography": "^0.5.19",

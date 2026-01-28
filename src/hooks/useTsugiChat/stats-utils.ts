@@ -17,20 +17,23 @@ export function createEmptyStats(): CumulativeStats {
 }
 
 /**
- * Calculate cumulative stats from a list of messages
+ * Calculate cumulative stats from a list of messages.
+ * Stats are stored in message.metadata.stats for AI SDK messages.
  */
 export function calculateCumulativeStats(messages: Message[]): CumulativeStats {
   return messages.reduce((acc, m) => {
-    if (m.stats) {
-      if (m.stats.tokensUnavailable) {
+    // Get stats from metadata (AI SDK style)
+    const stats = m.metadata?.stats;
+    if (stats) {
+      if (stats.tokensUnavailable) {
         acc.tokensUnavailableCount += 1;
       } else {
-        acc.totalPromptTokens += m.stats.promptTokens || 0;
-        acc.totalCompletionTokens += m.stats.completionTokens || 0;
-        acc.totalCachedTokens += m.stats.cachedTokens || 0;
-        acc.totalReasoningTokens += m.stats.reasoningTokens || 0;
+        acc.totalPromptTokens += stats.promptTokens || 0;
+        acc.totalCompletionTokens += stats.completionTokens || 0;
+        acc.totalCachedTokens += stats.cachedTokens || 0;
+        acc.totalReasoningTokens += stats.reasoningTokens || 0;
       }
-      acc.totalExecutionTimeMs += m.stats.executionTimeMs || 0;
+      acc.totalExecutionTimeMs += stats.executionTimeMs || 0;
     }
     if (m.role === 'assistant') {
       acc.messageCount += 1;

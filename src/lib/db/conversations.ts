@@ -155,24 +155,41 @@ export async function deleteConversation(id: string): Promise<void> {
 
 /**
  * Save a single message
- * Requires id and timestamp since the frontend always provides these
+ * Supports both AI SDK format (createdAt) and legacy format (timestamp)
  */
 export async function saveMessage(
   conversationId: string,
-  message: Message & { id: string; timestamp: Date },
+  message: Message & { id: string; createdAt?: Date; timestamp?: Date },
   sequenceOrder: number
 ): Promise<void> {
   const client = getDb();
 
+  // Extract text content for user messages
+  let userContent = '';
+  if (message.role === 'user') {
+    // AI SDK format: extract from text part
+    const textPart = message.parts?.find((p): p is { type: 'text'; text: string } => p.type === 'text');
+    userContent = textPart?.text || message.rawContent || message.content || '';
+  }
+
   // Content format differs by role
   // Assistant messages store parts (single source of truth)
   const content = message.role === 'user'
-    ? message.rawContent
+    ? userContent
     : JSON.stringify({ parts: message.parts || [] });
 
-  const metadata = message.stats ? JSON.stringify({ stats: message.stats }) : null;
+  // Get stats from either direct field or metadata
+  const stats = message.stats || message.metadata?.stats;
+  const metadata = stats ? JSON.stringify({ stats }) : null;
 
   const rawPayload = message.rawPayload ? JSON.stringify(message.rawPayload) : null;
+
+  // Support both AI SDK (createdAt) and legacy (timestamp) formats
+  const messageTime = message.createdAt || message.timestamp || new Date();
+  const timestamp = messageTime instanceof Date ? messageTime.getTime() : Date.now();
+
+  // Get agent from either direct field or metadata
+  const agent = message.agent || message.metadata?.agent || 'task';
 
   await client.execute({
     sql: `INSERT OR REPLACE INTO messages (id, conversation_id, role, content, metadata, timestamp, sequence_order, agent, raw_payload)
@@ -183,9 +200,9 @@ export async function saveMessage(
       message.role,
       content,
       metadata,
-      message.timestamp.getTime(),
+      timestamp,
       sequenceOrder,
-      message.agent || 'task',
+      agent,
       rawPayload,
     ],
   });
@@ -198,7 +215,7 @@ export async function saveMessage(
 }
 
 /**
- * Hydrate a DB row back to a Message
+ * Hydrate a DB row back to a Message (AI SDK UIMessage compatible format)
  */
 export function hydrateMessage(row: DbMessage): Message {
   const isAssistant = row.role === 'assistant';
@@ -206,11 +223,20 @@ export function hydrateMessage(row: DbMessage): Message {
   const rawPayload = row.raw_payload ? JSON.parse(row.raw_payload) : undefined;
 
   if (!isAssistant) {
+    // User message - use AI SDK text part format
     return {
       id: row.id,
       role: row.role,
+      parts: [{ type: 'text', text: row.content }],
+      // AI SDK uses createdAt
+      createdAt: new Date(row.timestamp),
+      // Store in metadata for AI SDK compatibility
+      metadata: {
+        stats: metadata.stats,
+        agent: row.agent,
+      },
+      // Legacy fields for backward compatibility
       rawContent: row.content,
-      parts: [{ type: 'text', content: row.content }],
       timestamp: new Date(row.timestamp),
       stats: metadata.stats,
       agent: row.agent,
@@ -223,8 +249,16 @@ export function hydrateMessage(row: DbMessage): Message {
   return {
     id: row.id,
     role: row.role,
-    rawContent: '',
     parts,
+    // AI SDK uses createdAt
+    createdAt: new Date(row.timestamp),
+    // Store in metadata for AI SDK compatibility
+    metadata: {
+      stats: metadata.stats,
+      agent: row.agent,
+    },
+    // Legacy fields for backward compatibility
+    rawContent: '',
     timestamp: new Date(row.timestamp),
     stats: metadata.stats,
     agent: row.agent,
