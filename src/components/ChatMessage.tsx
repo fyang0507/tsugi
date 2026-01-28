@@ -510,8 +510,25 @@ export default function ChatMessage({ message, onCodifySkill, isCodifying }: Cha
   // Check for skill creation in tool results (from skill set command)
   const createdSkillName = parseSkillCreation(parts);
 
-  // Get stats from message metadata (AI SDK format)
-  const stats = message.metadata?.stats;
+  // Get stats from message - check data-usage part first (live), then metadata (persisted from DB)
+  const stats = (() => {
+    // First check for data-usage part in message parts (from live stream)
+    const usagePart = parts.find((p) => p.type === 'data-usage');
+    if (usagePart && 'data' in usagePart) {
+      const data = usagePart.data as { usage: { promptTokens?: number; completionTokens?: number; cachedContentTokenCount?: number; reasoningTokens?: number } | null; executionTimeMs: number };
+      const { usage, executionTimeMs } = data;
+      return {
+        promptTokens: usage?.promptTokens,
+        completionTokens: usage?.completionTokens,
+        cachedTokens: usage?.cachedContentTokenCount,
+        reasoningTokens: usage?.reasoningTokens,
+        executionTimeMs,
+        tokensUnavailable: usage === null,
+      };
+    }
+    // Fall back to metadata (loaded from DB)
+    return message.metadata?.stats;
+  })();
 
   return (
     <div className="flex justify-start w-full min-w-0">
