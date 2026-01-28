@@ -85,15 +85,18 @@ export function useTsugiChat(options?: UseTsugiChatOptions) {
       // Handle transient sandbox events
       if (part.type === 'data-sandbox') {
         const data = part.data as SandboxData;
-        if (data.status === 'sandbox_active') {
+        if (data.status === 'sandbox_created' || data.status === 'sandbox_active') {
+          // Sandbox was created or reconnected - store its ID
           setSandboxStatus('connected');
           if (data.sandboxId) {
             setCurrentSandboxId(data.sandboxId);
           }
         } else if (data.status === 'sandbox_terminated') {
+          // Sandbox was terminated (user abort or explicit cleanup)
           setSandboxStatus('disconnected');
           setCurrentSandboxId(null);
         } else if (data.status === 'sandbox_timeout') {
+          // Sandbox timed out due to inactivity
           setSandboxTimeoutMessage(data.reason || 'Sandbox timed out due to inactivity.');
           setSandboxStatus('disconnected');
           setCurrentSandboxId(null);

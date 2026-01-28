@@ -2,7 +2,7 @@ import type { Sandbox } from '@vercel/sandbox';
 import type { SandboxExecutor, CommandResult, ExecuteOptions } from './executor';
 import { SandboxTimeoutError } from './executor';
 
-const IDLE_TIMEOUT_MS = 300000; // 5 minutes idle timeout
+const IDLE_TIMEOUT_MS = 600000; // 10 minutes idle timeout (user requirement)
 const WORK_DIR = '/vercel/sandbox';
 
 export class VercelSandboxExecutor implements SandboxExecutor {
@@ -82,6 +82,15 @@ export class VercelSandboxExecutor implements SandboxExecutor {
 
   getSandboxId(): string | null {
     return this.sandbox?.sandboxId ?? null;
+  }
+
+  /**
+   * Eagerly initialize the sandbox and return its ID.
+   * This allows getting the sandboxId before any command is executed.
+   */
+  async initialize(): Promise<string> {
+    const sandbox = await this.ensureSandbox();
+    return sandbox.sandboxId;
   }
 
   isAlive(): boolean {

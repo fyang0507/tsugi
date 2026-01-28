@@ -9,10 +9,22 @@ import type { MessageStats } from '@/lib/messages/transform';
 export type { MessageStats };
 
 /**
- * Custom data part schemas for sandbox and usage events.
+ * Sandbox lifecycle status events.
+ *
+ * Lifecycle:
+ * - sandbox_created: New sandbox was created for this conversation
+ * - sandbox_active: Reconnected to existing sandbox (legacy, treated same as created)
+ * - sandbox_terminated: Sandbox was stopped (user abort or explicit cleanup)
+ * - sandbox_timeout: Sandbox timed out due to inactivity (10 min idle)
  */
+export type SandboxStatusType =
+  | 'sandbox_created'
+  | 'sandbox_active'
+  | 'sandbox_terminated'
+  | 'sandbox_timeout';
+
 export interface SandboxData {
-  status: string;
+  status: SandboxStatusType;
   sandboxId?: string;
   reason?: string;
 }

@@ -23,6 +23,15 @@ export class LocalSandboxExecutor implements SandboxExecutor {
     return this.sandboxId;
   }
 
+  /**
+   * Eagerly initialize the sandbox directory and return its ID.
+   * For local executor, this just ensures the directory exists.
+   */
+  async initialize(): Promise<string> {
+    await fs.mkdir(this.sandboxDir, { recursive: true });
+    return this.sandboxId;
+  }
+
   isAlive(): boolean {
     return !this.isDead;
   }

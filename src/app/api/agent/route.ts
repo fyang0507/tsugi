@@ -18,8 +18,12 @@ export async function POST(req: Request) {
     sandboxId?: string;
   };
 
-  // Initialize executor with sandboxId if reconnecting to existing sandbox
-  const executor = await getSandboxExecutor(requestSandboxId);
+  // Sandbox lifecycle:
+  // - If sandboxId provided: reconnect to existing sandbox (continuing conversation)
+  // - If no sandboxId: create fresh sandbox for new conversation
+  // forceNew=true ensures we don't reuse a stale cached executor from a previous conversation
+  const isNewConversation = !requestSandboxId;
+  const executor = await getSandboxExecutor(requestSandboxId, isNewConversation);
 
   // Merge UI env vars with .env.playground (local dev) or Vercel env (production)
   const mergedEnv = mergePlaygroundEnv(uiEnv);
@@ -37,6 +41,7 @@ export async function POST(req: Request) {
   let aborted = false;
   let sandboxUsed = false;
   let sandboxIdEmitted = false;
+  let currentSandboxId: string | undefined = requestSandboxId || undefined;
 
   // Listen for client abort (when user stops the agent)
   req.signal.addEventListener('abort', () => {
@@ -46,7 +51,6 @@ export async function POST(req: Request) {
   const stream = createUIMessageStream({
     execute: async ({ writer }) => {
       // Wrap with request context so skill agent's tool can access conversationId/sandboxId/env
-      const currentSandboxId = requestSandboxId || executor.getSandboxId() || undefined;
       await runWithRequestContext({ conversationId, sandboxId: currentSandboxId, env: mergedEnv }, async () => {
         try {
           // Create agent per-request INSIDE request context so it picks up user-provided API key
@@ -89,22 +93,26 @@ export async function POST(req: Request) {
             if (aborted) break;
 
             // Track sandbox usage from tool calls
+            // When a shell command (non-skill) is detected, eagerly initialize the sandbox
+            // and emit its ID to the client before the command runs
             if (chunk.type === 'tool-input-available' && chunk.toolName === 'shell') {
               const input = chunk.input as { command?: string } | undefined;
               const command = input?.command;
               if (command && !command.startsWith('skill ')) {
                 sandboxUsed = true;
 
+                // Eagerly initialize sandbox and emit ID on first shell command
                 if (!sandboxIdEmitted) {
-                  const currentSandboxId = executor.getSandboxId();
-                  if (currentSandboxId && currentSandboxId !== requestSandboxId) {
+                  const newSandboxId = await executor.initialize();
+                  if (newSandboxId !== requestSandboxId) {
+                    currentSandboxId = newSandboxId;
                     writer.write({
                       type: 'data-sandbox',
-                      data: { status: 'sandbox_active', sandboxId: currentSandboxId },
+                      data: { status: 'sandbox_created', sandboxId: newSandboxId },
                       transient: true,
                     });
-                    sandboxIdEmitted = true;
                   }
+                  sandboxIdEmitted = true;
                 }
               }
             }
