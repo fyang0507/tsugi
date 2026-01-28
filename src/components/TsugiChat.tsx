@@ -629,9 +629,15 @@ export default function TsugiChat() {
   }, [leftConversationId, rightConversationId, leftTitle, rightTitle, pinName, pinComparison]);
 
   const handleOpenPinModal = useCallback(() => {
-    if (leftTitle && rightTitle) {
-      setPinName(`${leftTitle} vs ${rightTitle}`);
-    }
+    // Generate a default name based on available titles
+    const defaultName = leftTitle && rightTitle
+      ? `${leftTitle} vs ${rightTitle}`
+      : leftTitle
+        ? `${leftTitle} vs ...`
+        : rightTitle
+          ? `... vs ${rightTitle}`
+          : 'Comparison';
+    setPinName(defaultName);
     setShowPinModal(true);
   }, [leftTitle, rightTitle]);
 
@@ -1027,6 +1033,7 @@ export default function TsugiChat() {
               placeholder="Comparison name"
               className="w-full px-3 py-2 bg-zinc-800/50 border border-white/10 rounded-xl text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/30 mb-4 transition-all"
               autoFocus
+              onFocus={(e) => e.target.select()}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && pinName.trim()) {
                   handlePinComparison();

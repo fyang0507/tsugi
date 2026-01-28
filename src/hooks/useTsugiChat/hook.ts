@@ -117,17 +117,19 @@ export function useTsugiChat(options?: UseTsugiChatOptions) {
         }));
 
         // Add stats to message metadata for persistence
-        if (message.metadata) {
-          message.metadata.stats = {
-            promptTokens: usage?.promptTokens,
-            completionTokens: usage?.completionTokens,
-            cachedTokens: usage?.cachedContentTokenCount,
-            reasoningTokens: usage?.reasoningTokens,
-            executionTimeMs,
-            tokensUnavailable: usage === null,
-          };
-          message.metadata.agent = usagePart.data.agent;
+        // Initialize metadata if it doesn't exist (AI SDK may not create it)
+        if (!message.metadata) {
+          (message as Message).metadata = {};
         }
+        message.metadata!.stats = {
+          promptTokens: usage?.promptTokens,
+          completionTokens: usage?.completionTokens,
+          cachedTokens: usage?.cachedContentTokenCount,
+          reasoningTokens: usage?.reasoningTokens,
+          executionTimeMs,
+          tokensUnavailable: usage === null,
+        };
+        message.metadata!.agent = usagePart.data.agent;
       }
 
       // Call onMessageComplete for the new message
