@@ -256,7 +256,7 @@ export const VisualizationDemo: React.FC = () => {
                             initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }}
                             transition={{ delay: 1.2 }}
                             className="absolute left-[35%] top-[8%] text-[10px] text-red-300 font-mono bg-red-950/80 border border-red-900/50 px-2 py-1 rounded shadow-lg backdrop-blur-sm whitespace-nowrap">
-                            Error: Rate Limit
+                            Error: Schema mismatch!
                         </motion.div>
 
                          <motion.div
