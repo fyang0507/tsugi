@@ -67,10 +67,12 @@ Transcript:
  *
  * @param conversationId - The conversation ID to fetch
  * @param sandboxId - Optional sandbox ID to fetch file listing from
+ * @param abortSignal - Optional abort signal for cancellation
  */
 export async function processTranscript(
   conversationId: string,
-  sandboxId?: string
+  sandboxId?: string,
+  abortSignal?: AbortSignal
 ): Promise<string> {
   // Fetch messages from database
   const conversation = await getConversation(conversationId);
@@ -108,6 +110,14 @@ export async function processTranscript(
   const streamResult = streamText({
     model: getFlashModel(),
     prompt,
+    abortSignal,
+    onAbort: () => {
+      console.log('[ProcessTranscript] Aborted');
+      emitToolProgress('get_processed_transcript', { status: 'complete', text: 'Transcript processing interrupted' });
+    },
+    onFinish: () => {
+      console.log('[ProcessTranscript] Completed');
+    },
   });
 
   let accumulated = '';

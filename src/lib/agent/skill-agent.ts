@@ -125,12 +125,15 @@ After tool execution completes:
 const processedTranscriptTool = {
   description: 'Get the processed transcript from the previous task conversation. Call this ONCE at the start - it is idempotent.',
   inputSchema: z.object({}),
-  execute: async () => {
+  execute: async (
+    _input: Record<string, never>,
+    { abortSignal }: { abortSignal?: AbortSignal }
+  ) => {
     const { conversationId, sandboxId } = getRequestContext();
     if (!conversationId) {
       return 'Error: No conversation ID in request context';
     }
-    return processTranscript(conversationId, sandboxId);
+    return processTranscript(conversationId, sandboxId, abortSignal);
   },
 };
 
@@ -163,6 +166,9 @@ export function createSkillAgent() {
           includeThoughts: true,
         },
       } satisfies GoogleGenerativeAIProviderOptions,
+    },
+    onFinish: ({ steps }) => {
+      console.log(`[SkillAgent] Completed with ${steps.length} steps`);
     },
   });
 }

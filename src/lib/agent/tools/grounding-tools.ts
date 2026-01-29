@@ -19,13 +19,24 @@ RULES:
   inputSchema: z.object({
     query: z.string().describe('The search query'),
   }),
-  execute: async ({ query }: { query: string }): Promise<string> => {
+  execute: async (
+    { query }: { query: string },
+    { abortSignal }: { abortSignal?: AbortSignal }
+  ): Promise<string> => {
     const streamText = getStreamText();
     try {
       const result = streamText({
         model: getFlashModel(),
         tools: { googleSearch: google.tools.googleSearch({}) },
         prompt: `Search the web for: "${query}". Return a concise list of summary of relevant results with the most specific urls. Focus on breadth of information.`,
+        abortSignal,
+        onAbort: () => {
+          console.log('[Search] Aborted');
+          emitToolProgress('search', { status: 'complete', text: 'Search interrupted' });
+        },
+        onFinish: () => {
+          console.log('[Search] Completed');
+        },
       });
 
       // Stream deltas to frontend for real-time updates
@@ -53,13 +64,24 @@ export const analyzeUrlTool = {
   inputSchema: z.object({
     url: z.string().describe('The URL to analyze'),
   }),
-  execute: async ({ url }: { url: string }): Promise<string> => {
+  execute: async (
+    { url }: { url: string },
+    { abortSignal }: { abortSignal?: AbortSignal }
+  ): Promise<string> => {
     const streamText = getStreamText();
     try {
       const result = streamText({
         model: getFlashModel(),
         tools: { urlContext: google.tools.urlContext({}) },
         prompt: `Analyze this URL: ${url}`,
+        abortSignal,
+        onAbort: () => {
+          console.log('[AnalyzeUrl] Aborted');
+          emitToolProgress('analyze_url', { status: 'complete', text: 'URL analysis interrupted' });
+        },
+        onFinish: () => {
+          console.log('[AnalyzeUrl] Completed');
+        },
       });
 
       // Stream deltas to frontend for real-time updates

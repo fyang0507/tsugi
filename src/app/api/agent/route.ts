@@ -83,7 +83,7 @@ export async function POST(req: Request) {
             async (span) => {
               const spanAny = span as unknown as Record<string, unknown>;
               rootSpanId = (spanAny._rootSpanId as string) ?? span.id;
-              return agent.stream({ messages: modelMessages });
+              return agent.stream({ messages: modelMessages, abortSignal: req.signal });
             },
             { name: `${mode === 'codify-skill' ? 'skill' : 'task'}-agent-${conversationId || 'anonymous'}` }
           );
@@ -191,6 +191,13 @@ export async function POST(req: Request) {
     onError: (error) => {
       console.error('[Agent] Stream error:', error);
       return error instanceof Error ? error.message : 'Unknown error';
+    },
+    onFinish: async ({ isAborted }) => {
+      if (isAborted) {
+        console.log('[Agent] Stream aborted by user');
+      } else {
+        console.log('[Agent] Stream completed normally');
+      }
     },
   });
 

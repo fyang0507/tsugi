@@ -133,8 +133,29 @@ export function useTsugiChat(options?: UseTsugiChatOptions) {
         }
       }
     },
-    onFinish: ({ message }) => {
-      // Extract usage from persistent data parts and update cumulative stats
+    onFinish: ({ message, isAbort }) => {
+      // Clear tool progress on any finish
+      setToolProgress(new Map());
+
+      // Handle abort case - mark message as interrupted and persist partial trajectory
+      if (isAbort) {
+        if (!message.metadata) {
+          (message as Message).metadata = {};
+        }
+        message.metadata!.interrupted = true;
+
+        // Persist partial trajectory
+        if (options?.onMessageComplete) {
+          const messages = chat.messages;
+          const messageIndex = messages.findIndex((m) => m.id === message.id);
+          if (messageIndex >= 0) {
+            options.onMessageComplete(message as Message, messageIndex);
+          }
+        }
+        return;
+      }
+
+      // Normal completion - extract usage from persistent data parts and update cumulative stats
       const usagePart = message.parts?.find(
         (p): p is { type: 'data-usage'; id?: string; data: UsageData } =>
           p.type === 'data-usage'

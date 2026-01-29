@@ -64,6 +64,7 @@ export interface MessageMetadata {
   agent?: 'task' | 'skill';
   stats?: MessageStats;
   rawPayload?: unknown[];
+  interrupted?: boolean;
 }
 
 /**

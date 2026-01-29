@@ -259,8 +259,17 @@ function LoadingSpinner({ className }: { className?: string }) {
   );
 }
 
+// Stop icon for interrupted state
+function StopIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="currentColor" viewBox="0 0 24 24">
+      <rect x="6" y="6" width="12" height="12" rx="1" />
+    </svg>
+  );
+}
+
 // Render AI SDK tool part (search, analyze_url, shell, get_processed_transcript) - collapsible
-function ToolPartView({ part, streamingContent }: { part: AIToolPart; streamingContent?: string }) {
+function ToolPartView({ part, streamingContent, isMessageInterrupted }: { part: AIToolPart; streamingContent?: string; isMessageInterrupted?: boolean }) {
   const [expanded, setExpanded] = useState(false);
 
   const toolName = getToolNameFromPartType(part.type);
@@ -275,8 +284,13 @@ function ToolPartView({ part, streamingContent }: { part: AIToolPart; streamingC
   const input = part.input || {};
   const toolDetail = input.query || input.url || input.command || '';
 
-  // AI SDK tool states
-  const isLoading = part.state === 'input-streaming' || part.state === 'input-available';
+  // Detect if this tool was interrupted (message interrupted + tool was in-progress)
+  const isInterrupted = isMessageInterrupted &&
+    (part.state === 'input-streaming' || part.state === 'input-available');
+
+  // AI SDK tool states - not loading if interrupted
+  const isLoading = !isInterrupted &&
+    (part.state === 'input-streaming' || part.state === 'input-available');
   const hasError = part.state === 'output-error';
   const result = part.output;
   // Use streaming content while loading, fall back to final result
@@ -289,6 +303,7 @@ function ToolPartView({ part, streamingContent }: { part: AIToolPart; streamingC
   // Color coding based on tool type
   const getToolStyles = () => {
     if (hasError) return { borderColor: 'border-red-500/30', bgColor: 'bg-red-500/5', iconColor: 'text-red-400' };
+    if (isInterrupted) return { borderColor: 'border-amber-500/30', bgColor: 'bg-amber-500/5', iconColor: 'text-amber-400' };
     if (isSearch) return { borderColor: 'border-cyan-500/30', bgColor: 'bg-cyan-500/5', iconColor: 'text-cyan-400' };
     if (isAnalyzeUrl) return { borderColor: 'border-purple-500/30', bgColor: 'bg-purple-500/5', iconColor: 'text-purple-400' };
     if (isTranscript) return { borderColor: 'border-amber-500/30', bgColor: 'bg-amber-500/5', iconColor: 'text-amber-400' };
@@ -317,7 +332,9 @@ function ToolPartView({ part, streamingContent }: { part: AIToolPart; streamingC
           onClick={() => setExpanded(!expanded)}
           className="flex items-center gap-2 text-sm w-full min-w-0 text-left p-2.5 hover:bg-white/5 transition-colors"
         >
-          {isLoading ? (
+          {isInterrupted ? (
+            <StopIcon className={`w-4 h-4 flex-shrink-0 ${iconColor}`} />
+          ) : isLoading ? (
             <LoadingSpinner className={`w-4 h-4 flex-shrink-0 ${iconColor}`} />
           ) : (
             <ToolIcon className={`w-4 h-4 flex-shrink-0 ${iconColor}`} />
@@ -325,9 +342,10 @@ function ToolPartView({ part, streamingContent }: { part: AIToolPart; streamingC
           <div className="flex flex-col flex-1 min-w-0 gap-0.5">
             <div className="flex items-center gap-2">
               <span className={`font-medium ${iconColor}`}>{toolDisplayName}</span>
+              {isInterrupted && <span className="text-amber-400 text-xs italic">interrupted</span>}
               {isLoading && <span className="text-zinc-500 text-xs italic">{loadingText}</span>}
               {hasError && <span className="text-red-400 text-xs italic">error</span>}
-              {!isLoading && !hasError && <span className="text-zinc-500 text-xs">done</span>}
+              {!isInterrupted && !isLoading && !hasError && <span className="text-zinc-500 text-xs">done</span>}
             </div>
             {toolDetail && (
               <span className="text-zinc-400 text-xs truncate">{String(toolDetail)}</span>
@@ -360,7 +378,9 @@ function ToolPartView({ part, streamingContent }: { part: AIToolPart; streamingC
         className="flex items-center gap-2 text-sm text-zinc-400 hover:text-zinc-300 transition-colors w-full min-w-0 text-left overflow-hidden"
       >
         <ChevronIcon expanded={expanded} />
-        {isLoading ? (
+        {isInterrupted ? (
+          <StopIcon className={`w-3.5 h-3.5 flex-shrink-0 ${iconColor}`} />
+        ) : isLoading ? (
           <LoadingSpinner className={`w-3.5 h-3.5 flex-shrink-0 ${iconColor}`} />
         ) : (
           <ToolIcon className={`w-3.5 h-3.5 flex-shrink-0 ${iconColor}`} />
@@ -377,6 +397,7 @@ function ToolPartView({ part, streamingContent }: { part: AIToolPart; streamingC
             )}
           </>
         )}
+        {isInterrupted && <span className="text-amber-400 italic flex-shrink-0">interrupted</span>}
         {isLoading && <span className="text-zinc-500 italic flex-shrink-0">{loadingText}</span>}
         {hasError && <span className="text-red-400 italic flex-shrink-0">error</span>}
       </button>
@@ -551,7 +572,14 @@ export default function ChatMessage({ message, onCodifySkill, isCodifying, toolP
                 const toolPart = part as unknown as AIToolPart;
                 const toolName = getToolNameFromPartType(toolPart.type);
                 const streamingContent = toolProgress?.get(toolName);
-                return <ToolPartView key={index} part={toolPart} streamingContent={streamingContent} />;
+                return (
+                  <ToolPartView
+                    key={index}
+                    part={toolPart}
+                    streamingContent={streamingContent}
+                    isMessageInterrupted={message.metadata?.interrupted}
+                  />
+                );
               }
               // AI SDK text part - uses .text property
               if (part.type === 'text') {
@@ -565,6 +593,12 @@ export default function ChatMessage({ message, onCodifySkill, isCodifying, toolP
               // Fallback for unknown part types
               return null;
             })}
+            {message.metadata?.interrupted && (
+              <div className="mt-2 pt-2 border-t border-amber-500/20 flex items-center gap-1.5 text-xs text-amber-400">
+                <StopIcon className="w-3.5 h-3.5" />
+                <span>Generation interrupted</span>
+              </div>
+            )}
             <MessageStats stats={stats} />
             {createdSkillName && <SkillArtifact skillName={createdSkillName} />}
             {skillSuggestion && skillSuggestion.status === 'success' && onCodifySkill && (
