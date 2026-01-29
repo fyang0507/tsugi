@@ -111,6 +111,7 @@ export default function ChatContent({
   }, []);
 
   // Handle pending message from NewChatContent
+  // This syncs state from sessionStorage (an external system), which is valid for effects
   const hasSentPendingMessage = useRef(false);
   useEffect(() => {
     if (hasSentPendingMessage.current) return;
@@ -125,6 +126,7 @@ export default function ChatContent({
       try {
         const { content, env } = JSON.parse(pendingData);
         if (env && Object.keys(env).length > 0) {
+          // eslint-disable-next-line react-hooks/set-state-in-effect -- syncing from external storage
           setEnvVars(Object.entries(env).map(([key, value]) => ({ key, value: value as string })));
         }
         requestAnimationFrame(() => {

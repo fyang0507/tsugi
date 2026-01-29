@@ -211,7 +211,6 @@ function TaskLayoutInner({ children }: { children: React.ReactNode }) {
     sidebarOpen,
     toggleSidebar,
     groupedConversations,
-    createConversation,
     deleteConversation,
     renameConversation,
     skills,
