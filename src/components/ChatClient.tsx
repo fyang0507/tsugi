@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useTsugiChat, Message } from '@/hooks/useTsugiChat';
 import { useConversations } from '@/hooks/useConversations';
@@ -205,13 +205,26 @@ function SystemPromptModal({
   );
 }
 
-export default function TsugiChat() {
+interface ChatClientProps {
+  conversationId: string;
+  initialMessages: Message[];
+  initialMode: 'task' | 'codify-skill';
+}
+
+export default function ChatClient({
+  conversationId,
+  initialMessages,
+  initialMode,
+}: ChatClientProps) {
+  const router = useRouter();
+
   const [input, setInput] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [codifyingMessageId, setCodifyingMessageId] = useState<string | null>(null);
   const [selectedSkill, setSelectedSkill] = useState<SkillDetail | null>(null);
   const [showSystemPrompt, setShowSystemPrompt] = useState(false);
   const [envVars, setEnvVars] = useState<Array<{ key: string; value: string }>>([]);
+  const [currentMode, setCurrentMode] = useState<'task' | 'codify-skill'>(initialMode);
 
   // Load LLM API key from sessionStorage after hydration (avoids SSR mismatch)
   useEffect(() => {
@@ -285,59 +298,41 @@ export default function TsugiChat() {
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const isAtBottomRef = useRef(true);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const router = useRouter();
-  const searchParams = useSearchParams();
 
-  // Conversation management
+  // Conversation management (CRUD only, no switching logic)
   const {
-    conversations,
     groupedConversations,
-    currentId,
-    setCurrentId,
     createConversation,
-    switchConversation,
     deleteConversation,
     renameConversation,
     updateMode,
     saveMessage,
   } = useConversations();
 
-  // Track current agent mode for the conversation
-  const [currentMode, setCurrentMode] = useState<'task' | 'codify-skill'>('task');
+  // Track initial message count to avoid re-saving loaded messages
+  const initialMessageCount = useMemo(() => initialMessages.length, [initialMessages]);
 
-  // Messages for current conversation (loaded from DB or empty for new)
-  const [loadedMessages, setLoadedMessages] = useState<Message[]>([]);
-  const messageCountRef = useRef(0);
-
-  // Use ref to track currentId for callbacks (avoids stale closure issues)
-  const currentIdRef = useRef<string | null>(currentId);
-  // Track if we're programmatically switching (to avoid URL sync loop)
-  const isSwitchingRef = useRef(false);
-  useEffect(() => {
-    currentIdRef.current = currentId;
-  }, [currentId]);
-
-  // Memoize the options to prevent infinite re-renders
-  const tsugiCahtOptions = useMemo(() => ({
-    initialMessages: loadedMessages,
+  // useTsugiChat with conversationId as required prop
+  // The hook now owns persistence internally
+  const tsugiChatOptions = useMemo(() => ({
+    conversationId,
+    initialMessages,
     onMessageComplete: async (message: Message, index: number) => {
-      const convId = currentIdRef.current;
-      if (!convId) return;
       // Skip messages that were already loaded from DB
-      if (index < messageCountRef.current) return;
-      await saveMessage(convId, message, index);
-      // Auto-title on first user message (only for new conversations)
-      if (messageCountRef.current === 0 && index === 0 && message.role === 'user') {
+      if (index < initialMessageCount) return;
+      await saveMessage(conversationId, message, index);
+      // Auto-title on first user message (only for new conversations with no messages)
+      if (initialMessageCount === 0 && index === 0 && message.role === 'user') {
         // Extract text content from AI SDK message parts
         const textPart = message.parts?.find((p): p is { type: 'text'; text: string } => p.type === 'text');
         const textContent = textPart?.text || '';
         const title = textContent.slice(0, 50) || 'New conversation';
-        await renameConversation(convId, title);
+        await renameConversation(conversationId, title);
       }
     },
-  }), [loadedMessages, saveMessage, renameConversation]);
+  }), [conversationId, initialMessages, initialMessageCount, saveMessage, renameConversation]);
 
-  const { messages, status, error, cumulativeStats, sendMessage, clearMessages, stop, sandboxTimeoutMessage, clearSandboxTimeout, sandboxStatus, toolProgress } = useTsugiChat(tsugiCahtOptions);
+  const { messages, status, error, cumulativeStats, sendMessage, stop, sandboxTimeoutMessage, clearSandboxTimeout, sandboxStatus, toolProgress } = useTsugiChat(tsugiChatOptions);
 
   const isStreaming = status === 'streaming';
 
@@ -364,6 +359,36 @@ export default function TsugiChat() {
     inputRef.current?.focus();
   }, []);
 
+  // Handle pending message from NewChatClient (when user creates a new conversation)
+  // This syncs state with sessionStorage (an external system), which is valid for effects
+  const hasSentPendingMessage = useRef(false);
+  useEffect(() => {
+    if (hasSentPendingMessage.current) return;
+
+    const storageKey = `tsugi_pending_message_${conversationId}`;
+    const pendingData = sessionStorage.getItem(storageKey);
+
+    if (pendingData) {
+      hasSentPendingMessage.current = true;
+      sessionStorage.removeItem(storageKey);
+
+      try {
+        const { content, env } = JSON.parse(pendingData);
+        // Set env vars if provided - syncing from external storage
+        if (env && Object.keys(env).length > 0) {
+          // eslint-disable-next-line react-hooks/set-state-in-effect
+          setEnvVars(Object.entries(env).map(([key, value]) => ({ key, value: value as string })));
+        }
+        // Delay sending to ensure useTsugiChat hook is fully initialized
+        // This prevents a race condition with the reset effect that sets messages to []
+        requestAnimationFrame(() => {
+          sendMessage(content, 'task', conversationId, env);
+        });
+      } catch (e) {
+        console.error('Failed to parse pending message:', e);
+      }
+    }
+  }, [conversationId, sendMessage]);
 
   // Auto-resize textarea based on content
   useEffect(() => {
@@ -374,32 +399,8 @@ export default function TsugiChat() {
     }
   }, [input]);
 
-  // Handle selecting a conversation
-  // Returns true if switch succeeded, false if it failed (e.g., conversation not found)
-  const handleSelectConversation = useCallback(async (id: string): Promise<boolean> => {
-    // Skip if already on this conversation
-    if (id === currentIdRef.current) return true;
-
-    isSwitchingRef.current = true;
-    const result = await switchConversation(id);
-    if (result) {
-      setLoadedMessages(result.messages);
-      messageCountRef.current = result.messages.length;
-      currentIdRef.current = id;
-      setCurrentId(id);
-      setCurrentMode(result.conversation.mode || 'task');
-      router.push(`/task?id=${id}`, { scroll: false });
-      // Defer flag reset to next tick so URL sync effect sees the guard
-      setTimeout(() => { isSwitchingRef.current = false; }, 0);
-      return true;
-    }
-    isSwitchingRef.current = false;
-    return false;
-  }, [switchConversation, setCurrentId, router]);
-
-  // Handle creating a new chat (at most one "New conversation" allowed)
-  // excludeId: skip this ID when checking for existing "New conversation" (used after delete)
-  const handleNewChat = useCallback(async (excludeId?: string) => {
+  // Handle creating a new chat
+  const handleNewChat = useCallback(async () => {
     // Exit comparison mode if active
     if (isComparisonMode) {
       setIsComparisonMode(false);
@@ -410,119 +411,25 @@ export default function TsugiChat() {
       setRightTitle(null);
     }
 
-    // Check if an existing "New conversation" already exists (excluding just-deleted one)
-    const existingNew = conversations.find(c => c.title === 'New conversation' && c.id !== excludeId);
-    if (existingNew && existingNew.id !== currentIdRef.current) {
-      // Switch to existing empty conversation instead of creating another
-      await handleSelectConversation(existingNew.id);
-      return;
-    }
-
-    // If already on the "New conversation", just clear and focus
-    if (existingNew && existingNew.id === currentIdRef.current) {
-      setLoadedMessages([]);
-      messageCountRef.current = 0;
-      clearMessages();
-      setCurrentMode('task');
-      inputRef.current?.focus();
-      return;
-    }
-
-    // Create new conversation
-    isSwitchingRef.current = true;
+    // Create new conversation and navigate to it
     const conv = await createConversation('New conversation');
-    setLoadedMessages([]);
-    messageCountRef.current = 0;
-    clearMessages();
-    currentIdRef.current = conv.id;
-    setCurrentId(conv.id);
-    setCurrentMode('task');
-    router.push(`/task?id=${conv.id}`, { scroll: false });
-    inputRef.current?.focus();
-    // Defer flag reset to next tick so URL sync effect sees the guard
-    setTimeout(() => { isSwitchingRef.current = false; }, 0);
-  }, [conversations, createConversation, clearMessages, setCurrentId, router, handleSelectConversation, isComparisonMode]);
+    router.push(`/task/${conv.id}`);
+  }, [isComparisonMode, createConversation, router]);
 
   // Handle deleting a conversation
   const handleDeleteConversation = useCallback(async (id: string) => {
-    const wasCurrentConversation = id === currentId;
-
-    // Prevent URL sync effect from interfering during delete
-    if (wasCurrentConversation) {
-      isSwitchingRef.current = true;
-    }
-
+    const wasCurrentConversation = id === conversationId;
     await deleteConversation(id);
 
-    // If we deleted the current conversation, redirect to clean /task state
+    // If we deleted the current conversation, navigate to /task
     if (wasCurrentConversation) {
-      currentIdRef.current = null;
-      setLoadedMessages([]);
-      messageCountRef.current = 0;
-      clearMessages();
-      setCurrentId(null);
-      setCurrentMode('task');
-      router.replace('/task');
-      // Reset after a short delay to allow URL to update
-      setTimeout(() => {
-        isSwitchingRef.current = false;
-      }, 100);
+      router.push('/task');
     }
-  }, [deleteConversation, currentId, clearMessages, setCurrentId, router]);
-
-  // Initialize from URL on mount or browser navigation
-  // This syncs React state with the browser URL (an external system),
-  // which is a valid use case for setState in effects
-  useEffect(() => {
-    // Skip if we're in the middle of a programmatic switch
-    if (isSwitchingRef.current) return;
-
-    const id = searchParams.get('id');
-    if (id && id !== currentIdRef.current) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      handleSelectConversation(id).then((success) => {
-        // If the conversation doesn't exist (deleted), redirect to clean state
-        if (!success) {
-          setLoadedMessages([]);
-          messageCountRef.current = 0;
-          clearMessages();
-          setCurrentId(null);
-          setCurrentMode('task');
-          router.push('/task', { scroll: false });
-        }
-      });
-    }
-  }, [searchParams, handleSelectConversation, clearMessages, setCurrentId, router]);
-
-  // Handle ?compare=<id> query parameter to load a pinned comparison
-  // This syncs React state with the browser URL (an external system)
-  useEffect(() => {
-    const compareId = searchParams.get('compare');
-    if (compareId && pinnedComparisons.length > 0) {
-      const comparison = pinnedComparisons.find(c => c.id === compareId);
-      if (comparison) {
-        /* eslint-disable react-hooks/set-state-in-effect */
-        setIsComparisonMode(true);
-        setLeftConversationId(comparison.leftConversationId);
-        setRightConversationId(comparison.rightConversationId);
-        /* eslint-enable react-hooks/set-state-in-effect */
-        // Clear the compare param from URL to prevent re-triggering
-        router.replace('/task', { scroll: false });
-      }
-    }
-  }, [searchParams, pinnedComparisons, router]);
+  }, [deleteConversation, conversationId, router]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!input.trim() || isStreaming) return;
-
-    // Create conversation if none exists
-    if (!currentId) {
-      const conv = await createConversation('New conversation');
-      currentIdRef.current = conv.id; // Update ref immediately for callbacks
-      setCurrentId(conv.id);
-      router.push(`/task?id=${conv.id}`, { scroll: false });
-    }
 
     const message = input;
     setInput('');
@@ -535,11 +442,11 @@ export default function TsugiChat() {
       return acc;
     }, {} as Record<string, string>);
 
-    // Pass conversation ID for tracing (codify-skill mode also uses it to fetch transcript from DB)
+    // Send message with conversationId (hook already has it from props)
     await sendMessage(
       message,
       currentMode,
-      currentId || undefined,
+      conversationId,
       Object.keys(envRecord).length > 0 ? envRecord : undefined
     );
   }
@@ -559,17 +466,14 @@ export default function TsugiChat() {
 
     // Set mode to codify-skill and persist to DB
     setCurrentMode('codify-skill');
-    if (currentId) {
-      await updateMode(currentId, 'codify-skill');
-    }
+    await updateMode(conversationId, 'codify-skill');
 
     // Send a message to trigger skill codification agent
-    // Pass conversationId - the tool will fetch the transcript from DB
     const codifyPrompt = `Codify the skill "${suggestion.name}" based on the conversation above.`;
-    await sendMessage(codifyPrompt, 'codify-skill', currentId || undefined);
+    await sendMessage(codifyPrompt, 'codify-skill', conversationId);
 
     setCodifyingMessageId(null);
-  }, [isStreaming, codifyingMessageId, sendMessage, currentId, updateMode]);
+  }, [isStreaming, codifyingMessageId, sendMessage, conversationId, updateMode]);
 
   // Handle viewing a skill's details
   const handleSelectSkill = useCallback(async (name: string) => {
@@ -667,8 +571,7 @@ export default function TsugiChat() {
         isOpen={sidebarOpen}
         onToggle={() => setSidebarOpen(!sidebarOpen)}
         conversations={groupedConversations}
-        currentId={currentId}
-        onSelect={handleSelectConversation}
+        currentId={conversationId}
         onNew={handleNewChat}
         onDelete={handleDeleteConversation}
         onRename={renameConversation}

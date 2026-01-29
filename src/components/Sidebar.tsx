@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import Link from 'next/link';
 import type { GroupedConversations, Conversation } from '@/hooks/useConversations';
 import type { SkillMeta } from '@/hooks/useSkills';
 import type { PinnedComparison } from '@/hooks/usePinnedComparisons';
@@ -37,7 +38,6 @@ interface SidebarProps {
   onToggle: () => void;
   conversations: GroupedConversations;
   currentId: string | null;
-  onSelect: (id: string) => void;
   onNew: () => void;
   onDelete: (id: string) => void;
   onRename: (id: string, title: string) => void;
@@ -106,7 +106,6 @@ function CollapsibleSection({
 function ConversationItem({
   conversation,
   isActive,
-  onSelect,
   onDelete,
   onRename,
   isComparisonMode,
@@ -115,7 +114,6 @@ function ConversationItem({
 }: {
   conversation: Conversation;
   isActive: boolean;
-  onSelect: () => void;
   onDelete: () => void;
   onRename: (title: string) => void;
   isComparisonMode?: boolean;
@@ -155,11 +153,11 @@ function ConversationItem({
   };
 
   const handleClick = (e: React.MouseEvent) => {
+    // In comparison mode, select for comparison instead of navigating
     if (isComparisonMode && onSelectForComparison) {
+      e.preventDefault();
       e.stopPropagation();
       onSelectForComparison();
-    } else {
-      onSelect();
     }
   };
 
@@ -177,15 +175,9 @@ function ConversationItem({
     return `${base} hover:bg-zinc-800 ${dragCursor}`;
   }
 
-  return (
-    <div
-      className={getItemClassName()}
-      onClick={handleClick}
-      onDoubleClick={handleDoubleClick}
-      draggable={isComparisonMode}
-      onDragStart={handleDragStart}
-      data-conversation-id={conversation.id}
-    >
+  // Content that's shared between Link and div wrappers
+  const itemContent = (
+    <>
       {/* Chat icon */}
       <svg
         className="w-4 h-4 text-zinc-400 flex-shrink-0"
@@ -227,6 +219,7 @@ function ConversationItem({
             ref={menuButtonRef}
             onClick={(e) => {
               e.stopPropagation();
+              e.preventDefault();
               if (!showMenu) {
                 setMenuStyle(calculateMenuPosition(menuButtonRef));
               }
@@ -288,7 +281,35 @@ function ConversationItem({
           )}
         </div>
       )}
-    </div>
+    </>
+  );
+
+  // In comparison mode, render as a div with click handler
+  if (isComparisonMode) {
+    return (
+      <div
+        className={getItemClassName()}
+        onClick={handleClick}
+        onDoubleClick={handleDoubleClick}
+        draggable
+        onDragStart={handleDragStart}
+        data-conversation-id={conversation.id}
+      >
+        {itemContent}
+      </div>
+    );
+  }
+
+  // Normal mode: render as a Link for navigation
+  return (
+    <Link
+      href={`/task/${conversation.id}`}
+      className={getItemClassName()}
+      onDoubleClick={handleDoubleClick}
+      data-conversation-id={conversation.id}
+    >
+      {itemContent}
+    </Link>
   );
 }
 
@@ -296,7 +317,6 @@ function ConversationGroup({
   title,
   conversations,
   currentId,
-  onSelect,
   onDelete,
   onRename,
   isComparisonMode,
@@ -306,7 +326,6 @@ function ConversationGroup({
   title: string;
   conversations: Conversation[];
   currentId: string | null;
-  onSelect: (id: string) => void;
   onDelete: (id: string) => void;
   onRename: (id: string, title: string) => void;
   isComparisonMode?: boolean;
@@ -326,7 +345,6 @@ function ConversationGroup({
             key={conv.id}
             conversation={conv}
             isActive={conv.id === currentId}
-            onSelect={() => onSelect(conv.id)}
             onDelete={() => onDelete(conv.id)}
             onRename={(newTitle) => onRename(conv.id, newTitle)}
             isComparisonMode={isComparisonMode}
@@ -602,7 +620,6 @@ export function Sidebar({
   onToggle,
   conversations,
   currentId,
-  onSelect,
   onNew,
   onDelete,
   onRename,
@@ -730,7 +747,6 @@ export function Sidebar({
                 title="Today"
                 conversations={conversations.today}
                 currentId={currentId}
-                onSelect={onSelect}
                 onDelete={onDelete}
                 onRename={onRename}
                 isComparisonMode={isComparisonMode}
@@ -741,7 +757,6 @@ export function Sidebar({
                 title="Yesterday"
                 conversations={conversations.yesterday}
                 currentId={currentId}
-                onSelect={onSelect}
                 onDelete={onDelete}
                 onRename={onRename}
                 isComparisonMode={isComparisonMode}
@@ -752,7 +767,6 @@ export function Sidebar({
                 title="Last 7 days"
                 conversations={conversations.lastWeek}
                 currentId={currentId}
-                onSelect={onSelect}
                 onDelete={onDelete}
                 onRename={onRename}
                 isComparisonMode={isComparisonMode}
@@ -763,7 +777,6 @@ export function Sidebar({
                 title="Last 30 days"
                 conversations={conversations.lastMonth}
                 currentId={currentId}
-                onSelect={onSelect}
                 onDelete={onDelete}
                 onRename={onRename}
                 isComparisonMode={isComparisonMode}
@@ -774,7 +787,6 @@ export function Sidebar({
                 title="Older"
                 conversations={conversations.older}
                 currentId={currentId}
-                onSelect={onSelect}
                 onDelete={onDelete}
                 onRename={onRename}
                 isComparisonMode={isComparisonMode}

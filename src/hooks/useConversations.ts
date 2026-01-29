@@ -19,9 +19,15 @@ export interface GroupedConversations {
   older: Conversation[];
 }
 
+/**
+ * Hook for conversation CRUD operations.
+ *
+ * With route-based conversation isolation, this hook no longer tracks
+ * current conversation ID or handles switching - that's handled by
+ * Next.js routing. This hook is now purely for CRUD operations.
+ */
 export function useConversations() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [currentId, setCurrentId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchConversations = useCallback(async () => {
@@ -59,30 +65,6 @@ export function useConversations() {
     return conversation;
   }, []);
 
-  const switchConversation = useCallback(async (id: string): Promise<{ conversation: Conversation; messages: Message[] } | null> => {
-    try {
-      const response = await fetch(`/api/conversations/${id}`);
-      if (!response.ok) {
-        if (response.status === 404) {
-          return null;
-        }
-        throw new Error('Failed to get conversation');
-      }
-
-      const data = await response.json();
-      return {
-        conversation: data.conversation,
-        messages: data.messages.map((m: Message & { createdAt?: string }) => ({
-          ...m,
-          createdAt: m.createdAt ? new Date(m.createdAt) : new Date(),
-        })),
-      };
-    } catch (error) {
-      console.error('Failed to switch conversation:', error);
-      return null;
-    }
-  }, []);
-
   const deleteConversation = useCallback(async (id: string) => {
     try {
       const response = await fetch(`/api/conversations/${id}`, {
@@ -94,15 +76,10 @@ export function useConversations() {
       }
 
       setConversations((prev) => prev.filter((c) => c.id !== id));
-
-      // If we deleted the current conversation, clear it
-      if (currentId === id) {
-        setCurrentId(null);
-      }
     } catch (error) {
       console.error('Failed to delete conversation:', error);
     }
-  }, [currentId]);
+  }, []);
 
   const renameConversation = useCallback(async (id: string, title: string) => {
     try {
@@ -225,11 +202,8 @@ export function useConversations() {
   return {
     conversations,
     groupedConversations,
-    currentId,
-    setCurrentId,
     isLoading,
     createConversation,
-    switchConversation,
     deleteConversation,
     renameConversation,
     updateMode,

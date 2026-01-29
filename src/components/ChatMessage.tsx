@@ -67,7 +67,11 @@ function getToolNameFromPartType(partType: string): string {
 }
 
 // Parse skill suggestion from tool result (skill suggest command)
+// Returns the LAST successful skill suggestion, as the agent may retry with --force
 function parseToolSkillSuggestion(parts: readonly { type: string; [key: string]: unknown }[]): SkillSuggestion | null {
+  let lastSuccessSuggestion: SkillSuggestion | null = null;
+  let lastGuidanceSuggestion: SkillSuggestion | null = null;
+
   for (const part of parts) {
     // Check AI SDK tool parts (shell tool with skill suggest command)
     if (part.type.startsWith('tool-')) {
@@ -80,7 +84,7 @@ function parseToolSkillSuggestion(parts: readonly { type: string; [key: string]:
           const resultStr = typeof toolPart.output === 'string' ? toolPart.output : JSON.stringify(toolPart.output);
           const result = JSON.parse(resultStr);
           if (result.type === 'skill-suggestion') {
-            return {
+            const suggestion: SkillSuggestion = {
               status: result.status,
               learned: result.learned,
               name: result.name,
@@ -88,6 +92,12 @@ function parseToolSkillSuggestion(parts: readonly { type: string; [key: string]:
               similarSkills: result.similarSkills,
               message: result.message,
             };
+            // Track last success and last guidance separately
+            if (result.status === 'success') {
+              lastSuccessSuggestion = suggestion;
+            } else {
+              lastGuidanceSuggestion = suggestion;
+            }
           }
         } catch {
           // Not valid JSON or not a skill suggestion
@@ -95,7 +105,8 @@ function parseToolSkillSuggestion(parts: readonly { type: string; [key: string]:
       }
     }
   }
-  return null;
+  // Prefer success over guidance (agent may have retried with --force)
+  return lastSuccessSuggestion || lastGuidanceSuggestion;
 }
 
 // Detect skill set command results

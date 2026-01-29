@@ -92,6 +92,8 @@ export type ChatStatus = 'ready' | 'streaming' | 'error';
 export type SandboxStatus = 'disconnected' | 'connected';
 
 export interface UseTsugiChatOptions {
+  /** Conversation ID - required for persistence and API calls */
+  conversationId: string;
   initialMessages?: Message[];
   onMessageComplete?: (message: Message, index: number) => void;
 }

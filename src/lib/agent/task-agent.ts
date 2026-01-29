@@ -29,7 +29,7 @@ When task is verified complete:
 
 **If learned something worth codifying:**
 1. Call shell tool with: skill suggest "what was learned" --name="skill-name"
-2. After receiving the tool result, output a brief success summary ending with "COMPLETE"
+2. Follow the instructions in the response, then output "COMPLETE"
 
 **If nothing to codify (trivial task, existing skill worked perfectly):**
 → Output a brief success summary ending with "COMPLETE"

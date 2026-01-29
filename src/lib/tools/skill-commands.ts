@@ -116,6 +116,7 @@ const skillCommands: Record<string, CommandHandler> = {
         status: 'success',
         name: skillName,
         learned,
+        message: 'Suggestion recorded. User will see a "Codify as Skill" button. Do not run additional commands—just output COMPLETE.',
       });
     }
 
@@ -144,6 +145,7 @@ const skillCommands: Record<string, CommandHandler> = {
       status: 'success',
       name: skillName,
       learned,
+      message: 'Suggestion recorded. User will see a "Codify as Skill" button. Do not run additional commands—just output COMPLETE.',
     });
   },
 };
