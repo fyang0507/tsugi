@@ -139,17 +139,37 @@ export function useTsugiChat(options?: UseTsugiChatOptions) {
 
       // Handle abort case - mark message as interrupted and persist partial trajectory
       if (isAbort) {
-        if (!message.metadata) {
-          (message as Message).metadata = {};
-        }
-        message.metadata!.interrupted = true;
+        // Update message metadata with interrupted flag using setMessages to trigger re-render
+        chat.setMessages((prevMessages) => {
+          return prevMessages.map((m) => {
+            if (m.id === message.id) {
+              return {
+                ...m,
+                metadata: {
+                  ...m.metadata,
+                  interrupted: true,
+                },
+              };
+            }
+            return m;
+          });
+        });
+
+        // Also update the message object for persistence callback
+        const updatedMessage = {
+          ...message,
+          metadata: {
+            ...message.metadata,
+            interrupted: true,
+          },
+        } as Message;
 
         // Persist partial trajectory
         if (options?.onMessageComplete) {
           const messages = chat.messages;
           const messageIndex = messages.findIndex((m) => m.id === message.id);
           if (messageIndex >= 0) {
-            options.onMessageComplete(message as Message, messageIndex);
+            options.onMessageComplete(updatedMessage, messageIndex);
           }
         }
         return;
