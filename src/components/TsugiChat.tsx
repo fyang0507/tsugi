@@ -389,7 +389,8 @@ export default function TsugiChat() {
       setCurrentId(id);
       setCurrentMode(result.conversation.mode || 'task');
       router.push(`/task?id=${id}`, { scroll: false });
-      isSwitchingRef.current = false;
+      // Defer flag reset to next tick so URL sync effect sees the guard
+      setTimeout(() => { isSwitchingRef.current = false; }, 0);
       return true;
     }
     isSwitchingRef.current = false;
@@ -438,7 +439,8 @@ export default function TsugiChat() {
     setCurrentMode('task');
     router.push(`/task?id=${conv.id}`, { scroll: false });
     inputRef.current?.focus();
-    isSwitchingRef.current = false;
+    // Defer flag reset to next tick so URL sync effect sees the guard
+    setTimeout(() => { isSwitchingRef.current = false; }, 0);
   }, [conversations, createConversation, clearMessages, setCurrentId, router, handleSelectConversation, isComparisonMode]);
 
   // Handle deleting a conversation
