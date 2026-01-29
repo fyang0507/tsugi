@@ -5,6 +5,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { Message } from '@/hooks/useTsugiChat';
 import { MessageStats } from './MessageStats';
+import { useTypewriter } from './chat/TypewriterText';
 
 export interface SkillSuggestion {
   status: 'success' | 'guidance';
@@ -20,6 +21,8 @@ interface ChatMessageProps {
   onCodifySkill?: (suggestion: SkillSuggestion) => void;
   isCodifying?: boolean;
   toolProgress?: Map<string, string>;
+  /** Whether this message is currently streaming (for typewriter animation) */
+  isStreaming?: boolean;
 }
 
 /**
@@ -467,11 +470,14 @@ function MarkdownContent({ children }: { children: string }): React.ReactNode {
   );
 }
 
-// Render a text part with markdown
-function TextPartView({ content }: { content: string }): React.ReactNode {
-  if (!content.trim()) return null;
+// Render a text part with markdown and optional typewriter animation
+function TextPartView({ content, isStreaming = false }: { content: string; isStreaming?: boolean }): React.ReactNode {
+  // Use typewriter effect when streaming for smooth character reveal
+  const visibleContent = useTypewriter(content, isStreaming, 120);
 
-  const trimmed = content.trim();
+  if (!visibleContent.trim()) return null;
+
+  const trimmed = visibleContent.trim();
 
   // Exact match: just "COMPLETE"
   if (trimmed === 'COMPLETE') {
@@ -504,10 +510,10 @@ function TextPartView({ content }: { content: string }): React.ReactNode {
     );
   }
 
-  return <MarkdownContent>{content}</MarkdownContent>;
+  return <MarkdownContent>{visibleContent}</MarkdownContent>;
 }
 
-export default function ChatMessage({ message, onCodifySkill, isCodifying, toolProgress }: ChatMessageProps) {
+export default function ChatMessage({ message, onCodifySkill, isCodifying, toolProgress, isStreaming }: ChatMessageProps) {
   // User message - extract text from first text part
   if (message.role === 'user') {
     const firstPart = message.parts?.[0];
@@ -582,7 +588,7 @@ export default function ChatMessage({ message, onCodifySkill, isCodifying, toolP
               // AI SDK text part - uses .text property
               if (part.type === 'text') {
                 const textPart = part as unknown as { type: 'text'; text: string };
-                return <TextPartView key={index} content={textPart.text || ''} />;
+                return <TextPartView key={index} content={textPart.text || ''} isStreaming={isStreaming} />;
               }
               // Skip data parts (sandbox, usage) - they're handled elsewhere
               if (part.type.startsWith('data-')) {

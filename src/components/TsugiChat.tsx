@@ -810,6 +810,7 @@ export default function TsugiChat() {
                         onCodifySkill={(suggestion) => handleCodifySkill(message.id, suggestion)}
                         isCodifying={codifyingMessageId === message.id}
                         toolProgress={idx === messages.length - 1 ? toolProgress : undefined}
+                        isStreaming={isStreaming && idx === messages.length - 1 && message.role === 'assistant'}
                       />
                     ))}
                     <div ref={messagesEndRef} />
