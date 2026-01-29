@@ -161,30 +161,35 @@ export function useTsugiChat(options: UseTsugiChatOptions) {
 
       // Handle abort case - mark message as interrupted and complete interrupted tool calls
       if (isAbort) {
-        // Update message: mark as interrupted and complete any in-progress tool calls
+        // Determine agent type from current mode
+        const messageAgent = bodyParamsRef.current.mode === 'codify-skill' ? 'skill' : 'task';
+
+        // Helper to complete interrupted tool parts
+        const completeInterruptedParts = (parts: typeof message.parts) => {
+          return parts?.map((part) => {
+            if (part.type.startsWith('tool-') &&
+                'state' in part &&
+                (part.state === 'input-streaming' || part.state === 'input-available')) {
+              return {
+                ...part,
+                state: 'output-error' as const,
+                errorText: 'Interrupted by user',
+              };
+            }
+            return part;
+          });
+        };
+
+        // Update message in chat.messages array
         chat.setMessages((prevMessages) => {
           return prevMessages.map((m) => {
             if (m.id === message.id) {
-              // Find and complete interrupted tool parts
-              const updatedParts = m.parts?.map((part) => {
-                // Check if this is an interrupted tool part (has input but no output)
-                if (part.type.startsWith('tool-') &&
-                    'state' in part &&
-                    (part.state === 'input-streaming' || part.state === 'input-available')) {
-                  return {
-                    ...part,
-                    state: 'output-error' as const,
-                    errorText: 'Interrupted by user',
-                  };
-                }
-                return part;
-              });
-
               return {
                 ...m,
-                parts: updatedParts,
+                parts: completeInterruptedParts(m.parts),
                 metadata: {
                   ...m.metadata,
+                  agent: messageAgent,
                   interrupted: true,
                 },
               };
@@ -193,25 +198,13 @@ export function useTsugiChat(options: UseTsugiChatOptions) {
           });
         });
 
-        // Also create updated message for persistence callback
-        const updatedParts = message.parts?.map((part) => {
-          if (part.type.startsWith('tool-') &&
-              'state' in part &&
-              (part.state === 'input-streaming' || part.state === 'input-available')) {
-            return {
-              ...part,
-              state: 'output-error' as const,
-              errorText: 'Interrupted by user',
-            };
-          }
-          return part;
-        });
-
+        // Create updated message for persistence callback
         const updatedMessage = {
           ...message,
-          parts: updatedParts,
+          parts: completeInterruptedParts(message.parts),
           metadata: {
             ...message.metadata,
+            agent: messageAgent,
             interrupted: true,
           },
         } as Message;
@@ -233,6 +226,16 @@ export function useTsugiChat(options: UseTsugiChatOptions) {
           p.type === 'data-usage'
       );
 
+      // Always set agent based on current mode (not relying on server to send it)
+      // This ensures assistant messages have correct agent metadata for filtering
+      const messageAgent = bodyParamsRef.current.mode === 'codify-skill' ? 'skill' : 'task';
+
+      // Build updated metadata
+      const updatedMetadata: MessageMetadata = {
+        ...message.metadata,
+        agent: messageAgent,
+      };
+
       if (usagePart) {
         const { usage, executionTimeMs } = usagePart.data;
 
@@ -246,12 +249,8 @@ export function useTsugiChat(options: UseTsugiChatOptions) {
           tokensUnavailableCount: prev.tokensUnavailableCount + (usage === null ? 1 : 0),
         }));
 
-        // Add stats to message metadata for persistence
-        // Initialize metadata if it doesn't exist (AI SDK may not create it)
-        if (!message.metadata) {
-          (message as Message).metadata = {};
-        }
-        message.metadata!.stats = {
+        // Add stats to metadata
+        updatedMetadata.stats = {
           promptTokens: usage?.promptTokens,
           completionTokens: usage?.completionTokens,
           cachedTokens: usage?.cachedContentTokenCount,
@@ -259,15 +258,32 @@ export function useTsugiChat(options: UseTsugiChatOptions) {
           executionTimeMs,
           tokensUnavailable: usage === null,
         };
-        message.metadata!.agent = usagePart.data.agent;
       }
 
-      // Call onMessageComplete for the new message
+      // Update message in chat.messages array to ensure metadata is preserved for next request
+      // This is necessary because the message object in onFinish may not be the same reference
+      chat.setMessages((prevMessages) => {
+        return prevMessages.map((m) => {
+          if (m.id === message.id) {
+            return {
+              ...m,
+              metadata: updatedMetadata,
+            };
+          }
+          return m;
+        });
+      });
+
+      // Call onMessageComplete with updated message for persistence
       if (options.onMessageComplete) {
+        const updatedMessage = {
+          ...message,
+          metadata: updatedMetadata,
+        } as Message;
         const messages = chat.messages;
         const messageIndex = messages.findIndex((m) => m.id === message.id);
         if (messageIndex >= 0) {
-          options.onMessageComplete(message as Message, messageIndex);
+          options.onMessageComplete(updatedMessage, messageIndex);
         }
       }
     },
