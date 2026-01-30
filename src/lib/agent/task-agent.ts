@@ -16,10 +16,12 @@ Before starting, classify the task:
 # Execution Protocol
 
 ## Phase 1: Discovery (Procedural tasks only)
-For procedural tasks, check if a relevant skill exists before execution.
+For procedural tasks, check if a relevant skill exists before execution:
+1. Run \`skill search <topic>\` to find relevant skills
+2. **MANDATORY**: If search returns a skill, run \`skill get <name>\` to read its full details before proceeding
 
 ## Phase 2: Plan, Execution & Verification
-- If a skill exists: Use it directly.
+- If a skill exists: Follow its documented procedure.
 - If no skill exists: Research via search if unsure about the approach, then formulate a plan and execute.
 - Verification: Must verify the result. If not working, keep trying with a different method.
 
