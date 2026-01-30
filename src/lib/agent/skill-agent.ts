@@ -33,8 +33,8 @@ Call the shell tool with a "command" parameter containing the shell command to r
 Available commands:
 - skill list - List all saved skills
 - skill search keyword - Search skills by keyword
-- skill get name - Read a skill's full content
-- skill set name "content" - Create or update a skill
+- skill get <name> - Read a skill's full content
+- skill set <name> "content" - Create or update a skill
 - ls - List sandbox files
 - cat filename - Read sandbox file content
 
@@ -43,10 +43,6 @@ Available commands:
 Two separate storage areas:
 - **Skills** = persistent library (files stored here for future reuse, survives across sessions)
 - **Sandbox** = execution workspace (where Task Agent ran code, ephemeral)
-
-Flow:
-- Task Agent creates code in sandbox → you save it to skill via \`skill add-file\`
-- Later: Task Agent uses \`skill copy-to-sandbox\` → executes in sandbox
 
 Skill files CANNOT be executed directly - they must be copied to sandbox first.
 
