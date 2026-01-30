@@ -163,6 +163,7 @@ export function createSkillAgent() {
         },
       } satisfies GoogleGenerativeAIProviderOptions,
     },
+    temperature: 0.05,
     onFinish: ({ steps }) => {
       console.log(`[SkillAgent] Completed with ${steps.length} steps`);
     },

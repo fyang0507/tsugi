@@ -111,7 +111,7 @@ export function createTaskAgent() {
         },
       } satisfies GoogleGenerativeAIProviderOptions,
     },
-    temperature: 0.02,
+    temperature: 0.05,
     onFinish: ({ steps }) => {
       console.log(`[TaskAgent] Completed with ${steps.length} steps`);
     },
