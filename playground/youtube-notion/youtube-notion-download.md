@@ -12,4 +12,4 @@ I want to create a YouTube watchlist in my Notion.
 - No YouTube Shorts and live videos
 
 # Run 2
-Add youtube speed and xiao lin shuo latest episode to my notion.
+Add youtube ishowspeed and xiao lin shuo latest episode to my notion.
