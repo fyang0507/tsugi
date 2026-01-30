@@ -91,18 +91,30 @@ const hasCompleteSignal: StopCondition<typeof taskAgentTools> = ({ steps }) => {
   return steps.some(step => step.text?.trim().endsWith('COMPLETE')) ?? false;
 };
 
+// Model configuration: change this to switch between models
+// Pro model uses 'low' thinking (faster), Flash model uses 'medium' thinking (more thorough)
+const TASK_AGENT_MODEL: 'pro' | 'flash' = 'pro';
+
+function getModelConfig() {
+  if (TASK_AGENT_MODEL === 'pro') {
+    return { model: getProModel(), thinkingLevel: 'low' as const };
+  }
+  return { model: getFlashModel(), thinkingLevel: 'medium' as const };
+}
+
 // Factory function - creates a fresh agent per request to use request-scoped API key
 export function createTaskAgent() {
   const Agent = getAgent();
+  const { model, thinkingLevel } = getModelConfig();
   return new Agent({
-    model: getProModel(),
+    model,
     instructions: TASK_AGENT_INSTRUCTIONS,
     tools: taskAgentTools,
     stopWhen: [stepCountIs(100), hasCompleteSignal],
     providerOptions: {
       google: {
         thinkingConfig: {
-          thinkingLevel: 'medium',
+          thinkingLevel,
           includeThoughts: true,
         },
       } satisfies GoogleGenerativeAIProviderOptions,
