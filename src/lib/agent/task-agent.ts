@@ -37,6 +37,7 @@ When task is verified complete:
 **When to suggest codification:**
 - New procedure learned (debugging, trial-and-error, API discovery)
 - Used an existing skill BUT had to deviate, fix errors, or discover it was outdated
+- **After user refinement/correction**: If you previously suggested codification AND user asked for changes/fixes, suggest codification again with the refined procedure (it now incorporates user preferences)
 
 **When NOT to suggest:**
 - Trivial tasks & generic capabilities (math, simple lookups, summarization)
@@ -72,11 +73,6 @@ One-liners are fine for: single operations, exploration, truly one-off tasks.
 Two separate storage areas:
 - **Skills** = persistent library of reusable procedures and code files (survives across sessions)
 - **Sandbox** = your execution workspace (ephemeral, cleared between sessions)
-
-**Important**: Skill files CANNOT be executed directly. To use skill code:
-1. Copy to sandbox via shell: skill copy-to-sandbox skill-name script.py
-2. Modify if needed (update parameters, env vars)
-3. Execute via shell: python3 script.py
 
 Shell commands automatically run in the sandbox directory. Prefer pure bash when possible; only write Python if necessary.
 
