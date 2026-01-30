@@ -93,15 +93,15 @@ When codifying a skill that involved code execution (scripts in sandbox):
 
 1. List sandbox files: shell with command="ls"
 2. Read the code: shell with command="cat script.py"
-3. **Generalize the code** while preserving the same approach:
-   - Replace hardcoded values (URLs, IDs, tokens) with environment variables or parameters
-   - Add a docstring explaining what the script does and required parameters
-   - Remove task-specific data, keep the reusable procedure
+3. **Create executable, parameterized code:**
+   - Script MUST accept inputs (e.g., tickers, URLs) as arguments or from stdin—never hardcode task-specific values
+   - Script MUST use real API calls that worked during execution—never mock data or placeholders
+   - Replace secrets with environment variable references (e.g., \`os.environ["API_KEY"]\`)
    - Keep the SAME language, tools, and methods used in the original
-4. Include the generalized code in your skill markdown using a code block
-5. Document: required env vars, parameters, example usage
+4. Include the code in your skill markdown using a code block
+5. Document: required env vars, CLI usage example
 
-The goal is that future runs can adapt the code for different tasks using the SAME approach, not a different one.
+**Critical:** The skill must be directly executable on Run 2 with different inputs. If someone runs "generate brief for AAPL, ETH", the script should work without modification.
 
 # Completion
 After tool execution completes:
