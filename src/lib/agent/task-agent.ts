@@ -19,7 +19,7 @@ Before starting, classify the task:
 For procedural tasks, check if a relevant skill exists before execution.
 
 ## Phase 2: Plan, Execution & Verification
-- If a skill exists: Follow it completely. Skills encode user preferences—do not omit or override any part.
+- If a skill exists: **Execute the skill exactly—run its script, follow its steps, use its delivery method.** Do not research alternatives; skills encode user preferences.
 - If no skill exists: Research via search if unsure about the approach, then formulate a plan and execute.
 - Verification: Must verify the result. If not working, keep trying with a different method.
 
