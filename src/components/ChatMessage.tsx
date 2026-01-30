@@ -282,6 +282,12 @@ function StopIcon({ className }: { className?: string }) {
   );
 }
 
+// Check if shell command output indicates an error (non-zero exit code)
+function isShellCommandError(output: unknown): boolean {
+  if (typeof output !== 'string') return false;
+  return output.startsWith('Error:') || output.startsWith('Command failed');
+}
+
 // Render AI SDK tool part (search, analyze_url, shell, get_processed_transcript) - collapsible
 function ToolPartView({ part, streamingContent, isMessageInterrupted }: { part: AIToolPart; streamingContent?: string; isMessageInterrupted?: boolean }) {
   const [expanded, setExpanded] = useState(false);
@@ -319,7 +325,12 @@ function ToolPartView({ part, streamingContent, isMessageInterrupted }: { part: 
     if (isSearch) return { borderColor: 'border-cyan-500/30', bgColor: 'bg-cyan-500/5', iconColor: 'text-cyan-400' };
     if (isAnalyzeUrl) return { borderColor: 'border-purple-500/30', bgColor: 'bg-purple-500/5', iconColor: 'text-purple-400' };
     if (isTranscript) return { borderColor: 'border-amber-500/30', bgColor: 'bg-amber-500/5', iconColor: 'text-amber-400' };
-    if (isShellCommand) return { borderColor: 'border-green-500/30', bgColor: 'bg-green-500/5', iconColor: 'text-green-400' };
+    if (isShellCommand) {
+      const shellError = isShellCommandError(result);
+      return shellError
+        ? { borderColor: 'border-red-500/30', bgColor: 'bg-red-500/5', iconColor: 'text-red-400' }
+        : { borderColor: 'border-green-500/30', bgColor: 'bg-green-500/5', iconColor: 'text-green-400' };
+    }
     return { borderColor: 'border-zinc-700', bgColor: 'bg-zinc-800/50', iconColor: 'text-zinc-400' };
   };
 
