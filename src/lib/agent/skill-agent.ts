@@ -41,10 +41,10 @@ Available commands:
 # Skills vs Sandbox
 
 Two separate storage areas:
-- **Skills** = persistent library (files stored here for future reuse, survives across sessions)
+- **Skills** = persistent library of self-contained markdown documents (survives across sessions)
 - **Sandbox** = execution workspace (where Task Agent ran code, ephemeral)
 
-Skill files CANNOT be executed directly - they must be copied to sandbox first.
+Skills must be self-contained—all code must be inline in the markdown, not in separate files.
 
 # After Getting Summary
 Analyze the summary to determine if this is worth codifying as a skill.
@@ -78,9 +78,11 @@ description: One-line description
 ---
 # Title
 
-## Sections
+## Procedure
+[Steps with inline code blocks]
 
-## Files (if any)
+## Delivery (if specified)
+[How/where to send output]
 "
 
 If not worth saving, explain briefly why.

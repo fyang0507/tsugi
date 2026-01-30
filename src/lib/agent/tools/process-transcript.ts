@@ -11,6 +11,7 @@ const TRANSCRIPT_PROCESSING_PROMPT = `You are a transcript processor. Analyze th
 - What was the user trying to accomplish?
 - What defined success for this task?
 - Any constraints or preferences specified?
+- Delivery method (if any): how/where should output be sent?
 
 ## 2. Steps Taken (Chronological)
 Trace the actual execution path:
@@ -51,10 +52,10 @@ Format as numbered steps with concrete code blocks:
    \`\`\`
 
 Rules:
-- Shell commands are EPHEMERAL - include them verbatim (they won't persist)
-- Generated files are PERSISTED in sandbox - reference by name only (e.g., "Run create_sub.sh"), don't inline content
+- Include relevant codes inline (skills must be self-contained)
 - Parameterize secrets/IDs (e.g., $STRIPE_SECRET_KEY) but keep everything else verbatim
 - Skip failed attempts - only include the working path
+- Include final delivery step if specified
 - End with any critical "gotcha" that would cause failure if missed
 
 ---

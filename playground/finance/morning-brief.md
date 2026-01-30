@@ -32,7 +32,6 @@ That's too basic. I need you to follow a more rigorous anlaysis pattern like an 
 - 🔴 **Congressional trade**: Any amount
 - 🔴 **Breaking news**: Material events only
 - 🟡 **Near support/resistance**: Within 5% of key level
-- 🟡 **Whale movement**: > $1M SOL / > $10M BTC
 - 🟡 **Sentiment extreme**: Viral/trending discussion
 
 **Step 4: Compose Brief** - Use this exact format:
@@ -53,9 +52,9 @@ That's too basic. I need you to follow a more rigorous anlaysis pattern like an 
 ```
 
 ## Delivery
-Send to my discord via webhook (in env var).
+Morning brief should be delivered to my discord via webhook (in env var). No need to present results in the chat.
 
 ---
 
 # R2
-add to my morning brief: Google, BTC
+generate trading brief: Google, BTC

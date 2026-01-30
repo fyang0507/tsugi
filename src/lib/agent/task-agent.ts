@@ -19,7 +19,7 @@ Before starting, classify the task:
 For procedural tasks, check if a relevant skill exists before execution.
 
 ## Phase 2: Plan, Execution & Verification
-- If a skill exists: Follow its documented procedure.
+- If a skill exists: Follow it completely. Skills encode user preferences—do not omit or override any part.
 - If no skill exists: Research via search if unsure about the approach, then formulate a plan and execute.
 - Verification: Must verify the result. If not working, keep trying with a different method.
 
@@ -93,7 +93,7 @@ const hasCompleteSignal: StopCondition<typeof taskAgentTools> = ({ steps }) => {
 
 // Model configuration: change this to switch between models
 // Pro model uses 'low' thinking (faster), Flash model uses 'medium' thinking (more thorough)
-const TASK_AGENT_MODEL: 'pro' | 'flash' = 'pro';
+const TASK_AGENT_MODEL: 'pro' | 'flash' = 'flash';
 
 function getModelConfig() {
   if (TASK_AGENT_MODEL === 'pro') {
