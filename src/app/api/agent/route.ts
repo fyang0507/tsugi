@@ -48,9 +48,14 @@ export async function POST(req: Request) {
   let aborted = false;
   let sandboxUsed = false;
 
+  // Create local AbortController to explicitly propagate abort to agent
+  // req.signal only fires when client disconnects; we need to actively abort the agent
+  const agentAbortController = new AbortController();
+
   // Listen for client abort (when user stops the agent)
   req.signal.addEventListener('abort', () => {
     aborted = true;
+    agentAbortController.abort(); // Explicitly abort agent execution
   });
 
   // Prepare messages for the agent
@@ -98,7 +103,7 @@ export async function POST(req: Request) {
             async (span) => {
               const spanAny = span as unknown as Record<string, unknown>;
               rootSpanId = (spanAny._rootSpanId as string) ?? span.id;
-              return agent.stream({ messages: modelMessages, abortSignal: req.signal });
+              return agent.stream({ messages: modelMessages, abortSignal: agentAbortController.signal });
             },
             { name: `${mode === 'codify-skill' ? 'skill' : 'task'}-agent-${conversationId || 'anonymous'}` }
           );
