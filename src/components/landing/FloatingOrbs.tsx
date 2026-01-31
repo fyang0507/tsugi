@@ -40,6 +40,7 @@ export const FloatingOrbs: React.FC = () => {
         style={{
           background: 'radial-gradient(circle at center, rgba(34,211,238,0.2) 0%, rgba(5,150,105,0.08) 60%, rgba(0,0,0,0) 70%)',
           filter: 'blur(45px)',
+          opacity: 0.4,
           willChange: 'transform, opacity',
         }}
       />
