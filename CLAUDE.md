@@ -4,8 +4,7 @@
 
 Agentic framework where AI agents learn from trial-and-error execution and codify learnings into reusable skills. **"Explore once. Exploit next."**
 
-**Core Value:** Run 1 = Research + Skill Creation. Run 2 = Skill Lookup + Skip Research.
-
+Run 1 = Research + Skill Creation. Run 2 = Skill Lookup + Skip Research.
 Skills encode two knowledge types:
 - **Procedural**: Integration gotchas, validation rules, error patterns
 - **Preferences**: User's taxonomies, classification rules, domain constraints
@@ -14,7 +13,7 @@ Skills encode two knowledge types:
 
 **Dual-Agent System:**
 - **Task Agent** (`task-agent.ts`): Executes tasks in sandbox, read-only skill access, suggests codification
-- **Skill Agent** (`skill-agent.ts`): Analyzes transcripts via `get-processed-transcript` tool, codifies skills
+- **Skill Agent** (`skill-agent.ts`): Analyzes transcripts, codifies skills
 
 **Command Execution:**
 ```
@@ -23,60 +22,27 @@ executeCommand() [command-executor.ts]
 └─ else      → executeShellCommand() [shell-executor.ts]
 ```
 
-**Sandbox Abstraction:**
-- `SandboxExecutor` interface with `LocalSandboxExecutor` (dev) and `VercelSandboxExecutor` (prod)
-- Agents use native shell commands (`ls`, `cat`, `python3`) transparently
-
-**Storage:**
-- `LocalStorage` (filesystem) for dev, `CloudStorage` (Vercel Blob + Turso) for prod
+**Storage:** `LocalStorage` (dev) / `CloudStorage` (Vercel Blob + Turso prod)
+**Sandbox:** `LocalSandboxExecutor` (dev) / `VercelSandboxExecutor` (prod)
 
 ## Codebase Structure
 
 ```
 src/
-├── app/                    # Next.js App Router
-│   ├── api/
-│   │   ├── agent/          # Streaming endpoint (AI SDK UI)
-│   │   ├── comparisons/    # A/B comparison API
-│   │   ├── conversations/  # CRUD for chat history
-│   │   ├── prompts/        # Prompts API
-│   │   └── skills/         # Skills API
-│   ├── task/               # Task execution page
-│   └── page.tsx            # Main chat UI
-├── components/
-│   ├── chat/               # Chat UI (ChatLayout, SkillsPane, ComparisonPane, etc.)
-│   └── landing/            # Landing page (Hero, HowItWorks, VisualizationDemo, etc.)
-├── hooks/
-│   ├── useTsugiChat/       # Chat hook wrapping AI SDK's useChat
-│   ├── useConversations.ts # Conversation CRUD
-│   └── useSkills.ts        # Skills management
+├── app/                    # Next.js App Router (api/, page.tsx)
+├── components/             # chat/, landing/
+├── hooks/                  # useTsugiChat/, useConversations.ts, useSkills.ts
 └── lib/
-    ├── agent/              # Core agent logic
-    │   ├── task-agent.ts   # Task execution agent
-    │   ├── skill-agent.ts  # Skill codification agent
-    │   └── tools/          # execute-shell, grounding, process-transcript
-    ├── db/                 # SQLite/Turso database layer
-    ├── messages/           # Message transformation utilities
-    ├── sandbox/            # Sandbox executors (local/Vercel)
-    ├── skills/             # Skill storage (local/cloud)
-    └── tools/              # Command execution layer
+    ├── agent/              # task-agent.ts, skill-agent.ts, tools/
+    ├── db/                 # client.ts, conversations.ts, comparisons.ts
+    ├── messages/           # transform.ts (canonical Message types)
+    ├── sandbox/            # executor.ts, local-executor.ts, vercel-executor.ts
+    ├── skills/             # storage.ts, local-storage.ts, cloud-storage.ts
+    └── tools/              # command-executor.ts, shell-executor.ts, skill-commands.ts
 data/                       # Local data storage
 playground/                 # Demo tasks (discord, stripe, finance, youtube-notion)
-scripts/                    # Utility scripts
 MEMORY/                     # Plans, changelogs, progress tracking
 ```
-
-## Tech Stack
-
-- **Package Manager**: `pnpm` (not npm)
-- Next.js + React frontend with Vercel AI SDK UI (`@ai-sdk/react`)
-- Gemini API with KV caching and built-in grounding (`googleSearch`, `urlContext`)
-- SQLite (Turso) for conversations + skills metadata
-- framer-motion for animations, lucide-react for icons
-
-## Design System
-
-Dark mode with aurora/gradient accents (cyan → purple → pink). Glass-morphism cards, framer-motion animations.
 
 ## Testing
 
@@ -86,11 +52,13 @@ Dark mode with aurora/gradient accents (cyan → purple → pink). Glass-morphis
 
 ## Playground Tasks
 
-Demo tasks for testing/development in `playground/`:
-- `discord/` - Send Discord message (webhook API)
-- `stripe/` - Create Stripe transaction (Stripe API)
-- `finance/` - Morning brief generation
-- `youtube-notion/` - Generate video summary for watchlist
+Demo tasks for testing/development in `playground/`.
+
+## Tech Stack
+
+- **Package Manager**: `pnpm` (not npm)
+- Next.js + Vercel AI SDK, Gemini API with grounding, SQLite (Turso)
+- Testing: `pnpm test` (Vitest), Chrome DevTools MCP for UI verification
 
 ## Project Memory
 
