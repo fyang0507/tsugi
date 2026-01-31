@@ -36,6 +36,9 @@ export interface UsageData {
   } | null;
   executionTimeMs: number;
   agent: 'task' | 'skill';
+  // For eventual consistency
+  rootSpanId?: string;
+  status: 'resolved' | 'pending' | 'unavailable';
 }
 
 /**
@@ -96,4 +99,6 @@ export interface UseTsugiChatOptions {
   conversationId: string;
   initialMessages?: Message[];
   onMessageComplete?: (message: Message, index: number) => void;
+  /** Called when deferred stats are resolved via polling */
+  onStatsResolved?: (messageId: string, stats: MessageStats) => void;
 }

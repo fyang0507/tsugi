@@ -15,7 +15,9 @@ import type {
   UsageData,
   ToolProgressData,
 } from './types';
+import type { MessageStats } from '@/lib/messages/transform';
 import { createEmptyStats, calculateCumulativeStats } from './stats-utils';
+import { useStatsPolling } from '../useStatsPolling';
 
 /**
  * Data part schemas for AI SDK useChat.
@@ -36,6 +38,9 @@ const dataPartSchemas = {
     }).nullable(),
     executionTimeMs: z.number(),
     agent: z.enum(['task', 'skill']),
+    // For eventual consistency
+    rootSpanId: z.string().optional(),
+    status: z.enum(['resolved', 'pending', 'unavailable']),
   }),
   'tool-progress': z.object({
     toolName: z.string(),
@@ -58,6 +63,47 @@ export function useTsugiChat(options: UseTsugiChatOptions) {
 
   // Tool progress state for streaming tool output (transient - not persisted)
   const [toolProgress, setToolProgress] = useState<Map<string, string>>(new Map());
+
+  // Ref for chat.setMessages to use in polling callback (avoids closure issues)
+  const setMessagesRef = useRef<React.Dispatch<React.SetStateAction<Message[]>> | null>(null);
+
+  // Atomic message stats update function
+  const updateMessageStats = useCallback((messageId: string, stats: MessageStats) => {
+    if (setMessagesRef.current) {
+      setMessagesRef.current((prev) => {
+        return prev.map((m) => {
+          if (m.id !== messageId) return m;
+          return {
+            ...m,
+            metadata: {
+              ...m.metadata,
+              stats: { ...m.metadata?.stats, ...stats },
+            },
+          };
+        });
+      });
+    }
+    // Also update cumulative stats if resolved
+    if (stats.statsStatus === 'resolved') {
+      setCumulativeStats((prev) => ({
+        ...prev,
+        totalPromptTokens: prev.totalPromptTokens + (stats.promptTokens || 0),
+        totalCompletionTokens: prev.totalCompletionTokens + (stats.completionTokens || 0),
+        totalCachedTokens: prev.totalCachedTokens + (stats.cachedTokens || 0),
+        totalReasoningTokens: prev.totalReasoningTokens + (stats.reasoningTokens || 0),
+      }));
+    }
+  }, []);
+
+  // Initialize polling hook
+  const { startPolling, stopPolling } = useStatsPolling({
+    onStatsResolved: (messageId, stats) => {
+      updateMessageStats(messageId, stats);
+      if (stats.statsStatus === 'resolved' && options.onStatsResolved) {
+        options.onStatsResolved(messageId, stats);
+      }
+    },
+  });
 
   // Track previous message count for onMessageComplete callbacks
   const prevMessageCountRef = useRef(0);
@@ -237,27 +283,52 @@ export function useTsugiChat(options: UseTsugiChatOptions) {
       };
 
       if (usagePart) {
-        const { usage, executionTimeMs } = usagePart.data;
+        const { usage, executionTimeMs, rootSpanId, status: usageStatus } = usagePart.data;
 
-        setCumulativeStats((prev) => ({
-          totalPromptTokens: prev.totalPromptTokens + (usage?.promptTokens || 0),
-          totalCompletionTokens: prev.totalCompletionTokens + (usage?.completionTokens || 0),
-          totalCachedTokens: prev.totalCachedTokens + (usage?.cachedContentTokenCount || 0),
-          totalReasoningTokens: prev.totalReasoningTokens + (usage?.reasoningTokens || 0),
-          totalExecutionTimeMs: prev.totalExecutionTimeMs + executionTimeMs,
-          messageCount: prev.messageCount + 1,
-          tokensUnavailableCount: prev.tokensUnavailableCount + (usage === null ? 1 : 0),
-        }));
-
-        // Add stats to metadata
-        updatedMetadata.stats = {
+        // Build stats with status for eventual consistency
+        const newStats: MessageStats = {
           promptTokens: usage?.promptTokens,
           completionTokens: usage?.completionTokens,
           cachedTokens: usage?.cachedContentTokenCount,
           reasoningTokens: usage?.reasoningTokens,
           executionTimeMs,
-          tokensUnavailable: usage === null,
+          rootSpanId,
+          statsStatus: usageStatus === 'resolved' ? 'resolved'
+                     : usageStatus === 'unavailable' ? 'unavailable'
+                     : 'pending',
         };
+
+        updatedMetadata.stats = newStats;
+
+        // Update cumulative stats based on status
+        if (usageStatus === 'resolved' && usage) {
+          // Stats are ready - count them now
+          setCumulativeStats((prev) => ({
+            totalPromptTokens: prev.totalPromptTokens + (usage.promptTokens || 0),
+            totalCompletionTokens: prev.totalCompletionTokens + (usage.completionTokens || 0),
+            totalCachedTokens: prev.totalCachedTokens + (usage.cachedContentTokenCount || 0),
+            totalReasoningTokens: prev.totalReasoningTokens + (usage.reasoningTokens || 0),
+            totalExecutionTimeMs: prev.totalExecutionTimeMs + executionTimeMs,
+            messageCount: prev.messageCount + 1,
+            tokensUnavailableCount: prev.tokensUnavailableCount,
+          }));
+        } else if (usageStatus === 'pending' && rootSpanId) {
+          // Stats not ready - start polling, only count execution time
+          startPolling({ rootSpanId, messageId: message.id, conversationId });
+          setCumulativeStats((prev) => ({
+            ...prev,
+            totalExecutionTimeMs: prev.totalExecutionTimeMs + executionTimeMs,
+            messageCount: prev.messageCount + 1,
+          }));
+        } else if (usageStatus === 'unavailable') {
+          // Braintrust not configured
+          setCumulativeStats((prev) => ({
+            ...prev,
+            totalExecutionTimeMs: prev.totalExecutionTimeMs + executionTimeMs,
+            messageCount: prev.messageCount + 1,
+            tokensUnavailableCount: prev.tokensUnavailableCount + 1,
+          }));
+        }
       }
 
       // Update message in chat.messages array to ensure metadata is preserved for next request
@@ -292,6 +363,9 @@ export function useTsugiChat(options: UseTsugiChatOptions) {
     },
   });
 
+  // Keep setMessagesRef current for polling callback
+  setMessagesRef.current = chat.setMessages as React.Dispatch<React.SetStateAction<Message[]>>;
+
   // Reset state when initialMessages changes (conversation switch)
   useEffect(() => {
     if (options.initialMessages) {
@@ -304,6 +378,22 @@ export function useTsugiChat(options: UseTsugiChatOptions) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- chat.setMessages is stable
   }, [options.initialMessages]);
+
+  // Re-fetch stats for messages with pending status on load
+  useEffect(() => {
+    if (!options.initialMessages) return;
+
+    for (const message of options.initialMessages) {
+      const stats = message.metadata?.stats;
+      if (stats?.statsStatus === 'pending' && stats?.rootSpanId) {
+        startPolling({
+          rootSpanId: stats.rootSpanId,
+          messageId: message.id,
+          conversationId: conversationId,
+        });
+      }
+    }
+  }, [options.initialMessages, startPolling, conversationId]);
 
   // Track message changes and call onMessageComplete for user messages
   const onMessageComplete = options.onMessageComplete;

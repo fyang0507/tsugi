@@ -13,6 +13,9 @@
 // Type Definitions
 // ============================================================================
 
+/** Stats status for eventual consistency */
+export type StatsStatus = 'pending' | 'polling' | 'resolved' | 'failed' | 'unavailable';
+
 /** Token and timing statistics for a message */
 export interface MessageStats {
   promptTokens?: number;
@@ -21,6 +24,9 @@ export interface MessageStats {
   reasoningTokens?: number;
   executionTimeMs?: number;
   tokensUnavailable?: boolean;
+  // For eventual consistency polling
+  rootSpanId?: string;
+  statsStatus?: StatsStatus;
 }
 
 /**

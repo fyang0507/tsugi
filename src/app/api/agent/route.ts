@@ -146,16 +146,28 @@ export async function POST(req: Request) {
 
           const executionTimeMs = Date.now() - startTime;
 
-          // Fetch complete token stats from Braintrust BTQL (unless aborted)
+          // Flush Braintrust spans (don't block on stats - client will poll)
           let braintrustStats = null;
           if (!aborted && rootSpanId) {
             await flush();
+            // Attempt a quick fetch - if stats aren't ready, client will poll
             braintrustStats = await fetchTraceStats(rootSpanId);
+          }
+
+          // Determine status for eventual consistency
+          let usageStatus: 'resolved' | 'pending' | 'unavailable';
+          if (!rootSpanId || !process.env.BRAINTRUST_API_KEY) {
+            usageStatus = 'unavailable';
+          } else if (braintrustStats) {
+            usageStatus = 'resolved';
+          } else {
+            usageStatus = 'pending';  // Stats not yet available, client should poll
           }
 
           console.log('[Braintrust Stats]', {
             rootSpanId,
             stats: braintrustStats,
+            status: usageStatus,
             executionTimeMs,
             aborted,
           });
@@ -172,6 +184,8 @@ export async function POST(req: Request) {
               } : null,
               executionTimeMs,
               agent: mode === 'codify-skill' ? 'skill' : 'task',
+              rootSpanId,           // Include for potential polling
+              status: usageStatus,  // Explicit status for client
             },
           });
 

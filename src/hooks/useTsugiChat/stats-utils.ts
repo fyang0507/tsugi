@@ -19,20 +19,26 @@ export function createEmptyStats(): CumulativeStats {
 /**
  * Calculate cumulative stats from a list of messages.
  * Stats are stored in message.metadata.stats for AI SDK messages.
+ * Only counts tokens for messages with resolved stats status.
  */
 export function calculateCumulativeStats(messages: Message[]): CumulativeStats {
   return messages.reduce((acc, m) => {
     // Get stats from metadata (AI SDK style)
     const stats = m.metadata?.stats;
     if (stats) {
-      if (stats.tokensUnavailable) {
+      // Only count tokens if status is resolved (or no status = legacy behavior)
+      const isResolved = !stats.statsStatus || stats.statsStatus === 'resolved';
+      const isUnavailable = stats.tokensUnavailable || stats.statsStatus === 'unavailable' || stats.statsStatus === 'failed';
+
+      if (isUnavailable) {
         acc.tokensUnavailableCount += 1;
-      } else {
+      } else if (isResolved) {
         acc.totalPromptTokens += stats.promptTokens || 0;
         acc.totalCompletionTokens += stats.completionTokens || 0;
         acc.totalCachedTokens += stats.cachedTokens || 0;
         acc.totalReasoningTokens += stats.reasoningTokens || 0;
       }
+      // Pending status: don't count tokens yet, they'll be added when resolved
       acc.totalExecutionTimeMs += stats.executionTimeMs || 0;
     }
     if (m.role === 'assistant') {

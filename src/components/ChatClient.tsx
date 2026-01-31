@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useTsugiChat, Message } from '@/hooks/useTsugiChat';
+import { useTsugiChat, Message, MessageStats } from '@/hooks/useTsugiChat';
 import { useConversations } from '@/hooks/useConversations';
 import ChatMessage, { SkillSuggestion } from './ChatMessage';
 import { CumulativeStatsBar } from './CumulativeStats';
@@ -328,6 +328,18 @@ export default function ChatClient({
         const textContent = textPart?.text || '';
         const title = textContent.slice(0, 50) || 'New conversation';
         await renameConversation(conversationId, title);
+      }
+    },
+    // Persist resolved stats to DB when they become available via polling
+    onStatsResolved: async (messageId: string, stats: MessageStats) => {
+      try {
+        await fetch(`/api/conversations/${conversationId}/messages/${messageId}/stats`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ stats }),
+        });
+      } catch (error) {
+        console.error('Failed to persist resolved stats:', error);
       }
     },
   }), [conversationId, initialMessages, initialMessageCount, saveMessage, renameConversation]);
