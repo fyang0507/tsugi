@@ -57,4 +57,4 @@ Morning brief should be delivered to my discord via webhook (in env var). No nee
 ---
 
 # R2
-generate trading brief: Google, BTC
+generate trading brief: Google, BTC to my discord
